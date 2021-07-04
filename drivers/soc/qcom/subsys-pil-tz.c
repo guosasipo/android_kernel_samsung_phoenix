@@ -26,6 +26,7 @@
 #include <linux/msm-bus.h>
 #include <linux/dma-mapping.h>
 #include <linux/highmem.h>
+#include <linux/wt_system_monitor.h>
 
 #include <soc/qcom/subsystem_restart.h>
 #include <soc/qcom/ramdump.h>
@@ -784,6 +785,9 @@ static struct pil_reset_ops pil_ops_trusted = {
 	.proxy_unvote = pil_remove_proxy_vote,
 };
 
+#ifdef WT_BOOT_REASON
+char subsys_restart_reason[WT_MAX_SSR_REASON_LEN];
+#endif
 static void log_failure_reason(const struct pil_tz_data *d)
 {
 	u32 size;
@@ -805,8 +809,11 @@ static void log_failure_reason(const struct pil_tz_data *d)
 		return;
 	}
 
-	strlcpy(reason, smem_reason, min(size, MAX_SSR_REASON_LEN));
+	strlcpy(reason, smem_reason, min(size, WT_MAX_SSR_REASON_LEN));
 	pr_err("%s subsystem failure reason: %s.\n", name, reason);
+#ifdef WT_BOOT_REASON
+	strlcpy(subsys_restart_reason, smem_reason, min(size, MAX_SSR_REASON_LEN));
+#endif
 
 	smem_reason[0] = '\0';
 	wmb();
@@ -911,9 +918,13 @@ static irqreturn_t subsys_wdog_bite_irq_handler(int irq, void *dev_id)
 	pr_err("Watchdog bite received from %s!\n", d->subsys_desc.name);
 
 	if (d->subsys_desc.system_debug &&
-			!gpio_get_value(d->subsys_desc.err_fatal_gpio))
+			!gpio_get_value(d->subsys_desc.err_fatal_gpio)) {
+#ifdef WT_BOOT_REASON
+		set_reset_magic(RESET_MAGIC_SUBSYSTEM);
+#endif
 		panic("%s: System ramdump requested. Triggering device restart!\n",
 							__func__);
+	}
 	subsys_set_crash_status(d->subsys, CRASH_STATUS_WDOG_BITE);
 	log_failure_reason(d);
 	subsystem_restart_dev(d->subsys);

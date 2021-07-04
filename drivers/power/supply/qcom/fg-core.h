@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, 2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -173,8 +173,16 @@ enum fg_sram_param_id {
 	FG_SRAM_DELTA_BSOC_THR,
 	FG_SRAM_RECHARGE_SOC_THR,
 	FG_SRAM_RECHARGE_VBATT_THR,
+	FG_SRAM_KI_COEFF_LOW_DISCHG,
 	FG_SRAM_KI_COEFF_MED_DISCHG,
 	FG_SRAM_KI_COEFF_HI_DISCHG,
+	FG_SRAM_KI_COEFF_LO_MED_DCHG_THR,
+	FG_SRAM_KI_COEFF_MED_HI_DCHG_THR,
+	FG_SRAM_KI_COEFF_LOW_CHG,
+	FG_SRAM_KI_COEFF_MED_CHG,
+	FG_SRAM_KI_COEFF_HI_CHG,
+	FG_SRAM_KI_COEFF_LO_MED_CHG_THR,
+	FG_SRAM_KI_COEFF_MED_HI_CHG_THR,
 	FG_SRAM_KI_COEFF_FULL_SOC,
 	FG_SRAM_ESR_TIGHT_FILTER,
 	FG_SRAM_ESR_BROAD_FILTER,
@@ -285,11 +293,19 @@ struct fg_dt_props {
 	int	slope_limit_temp;
 	int	esr_pulse_thresh_ma;
 	int	esr_meas_curr_ma;
+	int	ki_coeff_low_chg;
+	int	ki_coeff_med_chg;
+	int	ki_coeff_hi_chg;
+	int	ki_coeff_lo_med_chg_thr_ma;
+	int	ki_coeff_med_hi_chg_thr_ma;
 	int	ki_coeff_full_soc_dischg;
 	int	jeita_thresholds[NUM_JEITA_LEVELS];
 	int	ki_coeff_soc[KI_COEFF_SOC_LEVELS];
+	int	ki_coeff_low_dischg[KI_COEFF_SOC_LEVELS];
 	int	ki_coeff_med_dischg[KI_COEFF_SOC_LEVELS];
 	int	ki_coeff_hi_dischg[KI_COEFF_SOC_LEVELS];
+	int	ki_coeff_lo_med_dchg_thr_ma;
+	int	ki_coeff_med_hi_dchg_thr_ma;
 	int	slope_limit_coeffs[SLOPE_LIMIT_NUM_COEFFS];
 	u8	batt_therm_coeffs[BATT_THERM_NUM_COEFFS];
 };
@@ -430,6 +446,7 @@ struct fg_chip {
 	int			charge_type;
 	int			online_status;
 	int			last_soc;
+	int			hold_soc;
 	int			last_batt_temp;
 	int			health;
 	int			maint_soc;
@@ -460,6 +477,7 @@ struct fg_chip {
 	struct work_struct	status_change_work;
 	struct delayed_work	ttf_work;
 	struct delayed_work	sram_dump_work;
+	struct delayed_work	hold_soc_work;
 	struct work_struct	esr_filter_work;
 	struct alarm		esr_filter_alarm;
 	ktime_t			last_delta_temp_time;
@@ -522,5 +540,4 @@ extern void fg_circ_buf_clr(struct fg_circ_buf *);
 extern int fg_circ_buf_avg(struct fg_circ_buf *, int *);
 extern int fg_circ_buf_median(struct fg_circ_buf *, int *);
 extern int fg_lerp(const struct fg_pt *, size_t, s32, s32 *);
-extern int fg_dma_mem_req(struct fg_chip *, bool);
 #endif

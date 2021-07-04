@@ -1044,6 +1044,51 @@ static ssize_t qpnp_wled_fs_curr_ua_store(struct device *dev,
 	return count;
 }
 
+
+static ssize_t qpnp_wled_cabc_show(struct device *dev,
+               struct device_attribute *attr, char *buf)
+{
+        struct qpnp_wled *wled = dev_get_drvdata(dev);
+
+        return snprintf(buf, PAGE_SIZE, "%d\n", wled->en_cabc);
+}
+
+static ssize_t qpnp_wled_cabc_store(struct device *dev,
+               struct device_attribute *attr, const char *buf, size_t count)
+{
+        struct qpnp_wled *wled = dev_get_drvdata(dev);
+        int data, i, rc;
+        u8 reg, mask;
+
+        rc = kstrtoint(buf, 10, &data);
+        if (rc)
+           return rc;
+
+        mutex_lock(&wled->lock);
+        wled->en_cabc = (data ? 1 : 0);
+        for (i = 0; i < wled->max_strings; i++) {
+               /* CABC */
+                reg = wled->en_cabc ? (1  << QPNP_WLED_CABC_SHIFT) : 0;
+                mask = QPNP_WLED_CABC_MASK;
+                rc = qpnp_wled_masked_write_reg(wled, QPNP_WLED_CABC_REG(wled->sink_base, i),mask, reg);
+                if (rc < 0) {
+                        dev_err(&wled->pdev->dev, "set QPNP_WLED_CABC_REG %d\n", rc);
+                        goto set_reg_failed;
+                  }
+        }
+
+        rc = qpnp_wled_sync_reg_toggle(wled);
+        if (rc < 0) {
+                dev_err(&wled->pdev->dev, "Failed to toggle sync reg %d\n", rc);
+                goto set_reg_failed;
+        }
+
+set_reg_failed:
+        mutex_unlock(&wled->lock);
+        return count;
+}
+
+
 /* sysfs attributes exported by wled */
 static struct device_attribute qpnp_wled_attrs[] = {
 	__ATTR(dump_regs, 0664, qpnp_wled_dump_regs_show, NULL),
@@ -1055,6 +1100,9 @@ static struct device_attribute qpnp_wled_attrs[] = {
 	__ATTR(ramp_ms, 0664, qpnp_wled_ramp_ms_show, qpnp_wled_ramp_ms_store),
 	__ATTR(ramp_step, 0664, qpnp_wled_ramp_step_show,
 		qpnp_wled_ramp_step_store),
+
+       __ATTR(en_cabc, 0664, qpnp_wled_cabc_show, qpnp_wled_cabc_store),
+
 };
 
 /* worker for setting wled brightness */

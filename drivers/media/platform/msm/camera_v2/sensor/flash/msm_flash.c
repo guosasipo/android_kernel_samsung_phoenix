@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2017, 2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2009-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -363,8 +363,7 @@ static int32_t msm_flash_i2c_release(
 {
 	int32_t rc = 0;
 
-	if ((&flash_ctrl->power_info == NULL) ||
-		(&flash_ctrl->flash_i2c_client == NULL)) {
+	if (!(&flash_ctrl->power_info) || !(&flash_ctrl->flash_i2c_client)) {
 		pr_err("%s:%d failed: %pK %pK\n",
 			__func__, __LINE__, &flash_ctrl->power_info,
 			&flash_ctrl->flash_i2c_client);
@@ -606,6 +605,74 @@ static int32_t msm_flash_prepare(
 	}
 	CDBG("%s:%d:Exit\n", __func__, __LINE__);
 	return ret;
+}
+
+struct msm_flash_ctrl_t *flash_ctrl_wt=NULL;
+int32_t wt_flash_flashlight(int index, int flashduty,bool boolean)
+{
+        uint32_t curr = 0;
+        int32_t i = 0;
+        printk("%s:flashduty = %d", __func__,flashduty);
+        if(boolean ==1){
+               switch(flashduty) {
+                        case 0:
+                                curr = 25;//25ma
+                                break;
+                        case 1:
+                                curr = 50;
+                                break;
+                        case 2:
+                                curr = 75;
+                                break;
+                        case 3:
+                                curr = 100;
+                                break;
+                        case 4:
+                                curr = 125;
+                                break;
+                        case 5:
+                                curr = 150;
+                                break;
+                        default:
+                                pr_err("%s:intput flash flashduty error\n", __func__);
+               }
+         }else{
+                printk("%s line=%d boolean =0 curr = 0\n",__func__,__LINE__);
+                curr = 0;
+        }
+        printk("%s:curr = %d boolean=%d\n", __func__,curr,boolean);
+        if(flash_ctrl_wt){
+               for (i = 0; i < flash_ctrl_wt->flash_num_sources; i++){
+                    if (flash_ctrl_wt->flash_trigger[i]) led_trigger_event(flash_ctrl_wt->flash_trigger[i], 0);
+                }
+
+               for (i = 0; i < flash_ctrl_wt->torch_num_sources; i++){
+                   if (flash_ctrl_wt->torch_trigger[i]) led_trigger_event(flash_ctrl_wt->torch_trigger[i], 0);
+                }
+
+               if (flash_ctrl_wt->switch_trigger) led_trigger_event(flash_ctrl_wt->switch_trigger, 0);
+
+               if (curr == 0) return 0;
+
+		/* Turn on flash triggers */
+               printk("flash_ctrl_wt->torch_num_sources = %d\n",flash_ctrl_wt->torch_num_sources);
+
+               if (flash_ctrl_wt->torch_num_sources == 2) {
+                        if (index == 1) {
+                                led_trigger_event(flash_ctrl_wt->torch_trigger[0],curr);
+                                led_trigger_event(flash_ctrl_wt->torch_trigger[1],0);
+                        } else if (index == 2) {
+                                led_trigger_event(flash_ctrl_wt->torch_trigger[0],0);
+                                led_trigger_event(flash_ctrl_wt->torch_trigger[1],curr);
+                        }
+                }
+
+               if (flash_ctrl_wt->switch_trigger){
+                        printk("%s line=%d switch_trigger\n",__func__,__LINE__);
+                        led_trigger_event(flash_ctrl_wt->switch_trigger, 1);
+               }
+        }
+        return 0;
 }
 
 static int32_t msm_flash_low(
@@ -1309,6 +1376,8 @@ static int32_t msm_flash_platform_probe(struct platform_device *pdev)
 
 	if (flash_ctrl->flash_driver_type == FLASH_DRIVER_PMIC)
 		rc = msm_torch_create_classdev(pdev, flash_ctrl);
+
+        flash_ctrl_wt = flash_ctrl;
 
 	CDBG("probe success\n");
 	return rc;

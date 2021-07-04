@@ -335,6 +335,7 @@
 #define KEY_RFKILL		247	/* Key that controls all radios */
 
 #define KEY_MICMUTE		248	/* Mute / unmute the microphone */
+#define KEY_PALM_MODE		249
 
 /* Code 255 is reserved for special needs of AT keyboard driver */
 

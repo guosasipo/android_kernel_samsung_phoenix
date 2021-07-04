@@ -1225,4 +1225,45 @@ config TOUCHSCREEN_ST
 
 source "drivers/input/touchscreen/st/Kconfig"
 
+config TOUCHSCREEN_INFORMATION_INTERFACE
+	bool "touch information interface"
+	help
+	Say Y here if you want to use touch information interface.
+
+config TOUCHSCREEN_PROC_INTERFACE
+	bool "touch proc interface like open-short test"
+	depends on TOUCHSCREEN_INFORMATION_INTERFACE
+	help
+	Say Y here if you want to use touch proc interface like open-short test.
+
+config TOUCHSCREEN_OPEN_SHORT_TEST
+	bool "open-short test"
+	depends on TOUCHSCREEN_PROC_INTERFACE
+	help
+	Say Y here if you want to use touch proc interface of open-short test.
+
+config TOUCHSCREEN_OPEN_SHORT_TEST_STORE_RESULT
+	bool "write the result of open-short test to file"
+	depends on TOUCHSCREEN_OPEN_SHORT_TEST
+	help
+	Say Y here if you want to write the result of open-short test to file.
+
+config TOUCHSCREEN_LOCKDOWN_INFO
+	bool "lockdown info show"
+	depends on TOUCHSCREEN_PROC_INTERFACE
+	help
+	Say Y here if you want to use touch proc interface of lockdown info.
+
+config TOUCHSCREEN_GESTURE
+	bool "gesture support"
+	depends on TOUCHSCREEN_PROC_INTERFACE
+	help
+	Say Y here if you want to support gesture.
+
+config TOUCHSCREEN_HARDWAREINFO_SHOW
+	bool "set touch hardware infomation"
+	depends on TOUCHSCREEN_INFORMATION_INTERFACE
+	help
+	Say Y here if you want to set touch hardware infomation.
+
 endif

@@ -268,6 +268,11 @@ static int _create_phy_ctrl_nodes(struct mdss_panel_debugfs_info *debugfs_info,
 	DEBUGFS_CREATE_ARRAY("timing", phy_node,
 			     pinfo->mipi.dsi_phy_db.timing);
 
+
+	DEBUGFS_CREATE_ARRAY("timing_8996", phy_node,
+			     pinfo->mipi.dsi_phy_db.timing_8996);
+
+
 	return 0;
 }
 
@@ -387,6 +392,10 @@ static int _create_dsi_panel_nodes(struct mdss_panel_debugfs_info *dfs,
 	debugfs_create_u32("adjust_timer_ms", 0644, mipi_root,
 			(u32 *)&pinfo->adjust_timer_delay_ms);
 
+	debugfs_create_u8("lp11_deinit", 0644, mipi_root,
+			(char *)&pinfo->mipi.lp11_deinit);
+
+
 	/* TE reltaed nodes */
 	debugfs_create_u32("te_tear_check_en", 0644, te_root,
 			(u32 *)&pinfo->te.tear_check_en);
@@ -434,6 +443,10 @@ int mdss_panel_debugfs_panel_setup(struct mdss_panel_debugfs_info *debugfs_info,
 		(u32 *)&debugfs_info->panel_info.bl_max);
 	debugfs_create_u32("brightness_max", 0644, debugfs_info->root,
 		(u32 *)&debugfs_info->panel_info.brightness_max);
+
+	debugfs_create_u32("bl_default", 0644, debugfs_info->root,
+		(u32 *)&debugfs_info->panel_info.bl_default);
+
 
 	if ((panel_info->type == MIPI_CMD_PANEL) ||
 	    (panel_info->type == MIPI_VIDEO_PANEL)) {
@@ -568,6 +581,9 @@ void mdss_panel_debugfsinfo_to_panelinfo(struct mdss_panel_info *panel_info)
 		pinfo->brightness_max = dfs_info->panel_info.brightness_max;
 		pinfo->adjust_timer_delay_ms =
 			dfs_info->panel_info.adjust_timer_delay_ms;
+
+		pinfo->bl_default = dfs_info->panel_info.bl_default;
+
 
 		if ((pinfo->type == MIPI_CMD_PANEL) ||
 		    (pinfo->type == MIPI_VIDEO_PANEL)) {

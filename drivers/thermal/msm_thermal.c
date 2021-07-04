@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -50,6 +50,7 @@
 #include <linux/uaccess.h>
 #include <linux/uio_driver.h>
 #include <linux/io.h>
+#include <linux/wt_system_monitor.h>
 
 #include <asm/cacheflush.h>
 
@@ -2803,7 +2804,7 @@ static int do_vdd_mx(void)
 		}
 	}
 
-	if (dis_cnt == thresh[MSM_VDD_MX_RESTRICTION].thresh_ct) {
+	if ((dis_cnt == thresh[MSM_VDD_MX_RESTRICTION].thresh_ct)) {
 		ret = remove_vdd_mx_restriction();
 		if (ret)
 			pr_err("Failed to remove vdd mx restriction\n");
@@ -2876,6 +2877,9 @@ static void msm_thermal_bite(int zone_id, int temp)
 	/* If it is a secure device ignore triggering the thermal bite. */
 	if (!scm_is_secure_device())
 		return;
+#ifdef WT_BOOT_REASON
+	set_reset_magic(RESET_MAGIC_THERMAL);
+#endif
 	if (!is_scm_armv8()) {
 		scm_call_atomic1(SCM_SVC_BOOT, THERM_SECURE_BITE_CMD, 0);
 	} else {
@@ -6293,7 +6297,7 @@ static int fetch_cpu_mitigaiton_info(struct msm_thermal_data *data,
 		struct platform_device *pdev)
 {
 
-	int _cpu = 0, err = 0, sensor_name_len = 0;
+	int _cpu = 0, err = 0;
 	struct device_node *cpu_node = NULL, *limits = NULL, *tsens = NULL;
 	char *key = NULL;
 	struct device_node *node = pdev->dev.of_node;
@@ -6351,9 +6355,8 @@ static int fetch_cpu_mitigaiton_info(struct msm_thermal_data *data,
 			err = -ENOMEM;
 			goto fetch_mitig_exit;
 		}
-		sensor_name_len = strlen(sensor_name);
 		strlcpy((char *) cpus[_cpu].sensor_type, sensor_name,
-			sensor_name_len + 1);
+			strlen(sensor_name) + 1);
 		create_alias_name(_cpu, limits, pdev);
 	}
 

@@ -1,7 +1,7 @@
 /*
  * Core MDSS framebuffer driver.
  *
- * Copyright (c) 2008-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2008-2019, The Linux Foundation. All rights reserved.
  * Copyright (C) 2007 Google Incorporated
  *
  * This software is licensed under the terms of the GNU General Public
@@ -48,6 +48,9 @@
 #include <linux/dma-buf.h>
 #include <sync.h>
 #include <sw_sync.h>
+
+#include <linux/mdss_io_util.h>
+#include <linux/wakelock.h>
 
 #include "mdss_fb.h"
 #include "mdss_mdp_splash_logo.h"
@@ -122,6 +125,34 @@ static int mdss_fb_send_panel_event(struct msm_fb_data_type *mfd,
 					int event, void *arg);
 static void mdss_fb_set_mdp_sync_pt_threshold(struct msm_fb_data_type *mfd,
 		int type);
+#define WAIT_RESUME_TIMEOUT 200
+static struct fb_info *prim_fbi;
+static struct delayed_work prim_panel_work;
+static atomic_t prim_panel_is_on;
+static struct wake_lock prim_panel_wakelock;
+static void prim_panel_off_delayed_work(struct work_struct *work)
+{
+#ifdef CONFIG_FRAMEBUFFER_CONSOLE
+	console_lock();
+#endif
+	if (!lock_fb_info(prim_fbi)) {
+#ifdef CONFIG_FRAMEBUFFER_CONSOLE
+		console_unlock();
+#endif
+		return;
+	}
+
+	if (atomic_read(&prim_panel_is_on)) {
+		fb_blank(prim_fbi, FB_BLANK_POWERDOWN);
+		atomic_set(&prim_panel_is_on, false);
+		wake_unlock(&prim_panel_wakelock);
+	}
+
+	unlock_fb_info(prim_fbi);
+#ifdef CONFIG_FRAMEBUFFER_CONSOLE
+	console_unlock();
+#endif
+}
 
 static inline void __user *to_user_ptr(uint64_t address)
 {
@@ -273,6 +304,91 @@ static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 
 static int lcd_backlight_registered;
 
+
+#define WINGTECH_LINEAR_FUNC(out, v, y_min, y_max, x_min, x_max) do {\
+					out = (((int)y_max - (int)y_min)*v + \
+					((int)x_max*(int)y_min - (int)x_min*(int)y_max)) \
+					/((int)x_max - (int)x_min); \
+					} while (0)
+
+#define WINGTECH_MDSS_BRIGHT_TO_BL(out, v, bl_min, bl_max, min_bright, max_bright) \
+	WINGTECH_LINEAR_FUNC(out, v, bl_min, bl_max, min_bright, max_bright)
+
+#define WINGTECH_MDSS_BL_TO_BRIGHT(out, v, min_bright, max_bright, bl_min, bl_max) \
+	WINGTECH_LINEAR_FUNC(out, v, min_bright, max_bright, bl_min, bl_max)
+
+#define BRIGHTNESS_MIN 1
+#define BRIGHTNESS_DEFAULT 102
+int wingtech_mdss_get_bl_bright_value(struct msm_fb_data_type *mfd,
+					int in_value, bool bright_to_bl)
+{
+	int brightness_min, brightness_default;
+	int bl_p1, brightness_p1, bl_p2, brightness_p2;
+	int point_default, point_min;
+	int out_value;
+
+	brightness_min = BRIGHTNESS_MIN;
+	brightness_default = BRIGHTNESS_DEFAULT;
+
+	if (bright_to_bl) {
+		point_default = brightness_default;
+		point_min = brightness_min;
+	} else {
+		point_default = mfd->panel_info->bl_default;
+		point_min = mfd->panel_info->bl_min;
+	}
+
+	if (mfd->panel_info->bl_min == 1)
+		mfd->panel_info->bl_min = 5;//for the case of set bl_min to 1
+
+	if (mfd->panel_info->bl_default > 0) {
+		if (in_value >= point_default) {
+			bl_p1 = mfd->panel_info->bl_default;
+			brightness_p1 = brightness_default;
+			bl_p2 = mfd->panel_info->bl_max;
+			brightness_p2 = mfd->panel_info->brightness_max;
+		} else if (in_value >= point_min) {
+			bl_p1 = mfd->panel_info->bl_min;
+			brightness_p1 = brightness_min;
+			bl_p2 = mfd->panel_info->bl_default;
+			brightness_p2 = brightness_default;
+		} else {
+			bl_p1 = 0;
+			brightness_p1 = 0;
+			bl_p2 = mfd->panel_info->bl_min;
+			brightness_p2 = brightness_min;
+		}
+	} else {
+		if (in_value >= point_min) {
+			bl_p1 = mfd->panel_info->bl_min;
+			brightness_p1 = brightness_min;
+			bl_p2 = mfd->panel_info->bl_max;
+			brightness_p2 = mfd->panel_info->brightness_max;
+		} else {
+			bl_p1 = 0;
+			brightness_p1 = 0;
+			bl_p2 = mfd->panel_info->bl_min;
+			brightness_p2 = brightness_min;
+		}
+	}
+
+	if (bright_to_bl)
+		WINGTECH_MDSS_BRIGHT_TO_BL(out_value, in_value,
+			bl_p1, bl_p2, brightness_p1, brightness_p2);
+	else
+		WINGTECH_MDSS_BL_TO_BRIGHT(out_value, in_value,
+			brightness_p1, brightness_p2, bl_p1, bl_p2);
+
+	if (out_value && !in_value)
+		out_value = 0;
+
+	if (!out_value && in_value)
+		out_value = 1;
+
+	return out_value;
+}
+
+
 static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 				      enum led_brightness value)
 {
@@ -289,11 +405,18 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 
 	/* This maps android backlight level 0 to 255 into
 	   driver backlight level 0 to bl_max with rounding */
+
+#if 0
 	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
 				mfd->panel_info->brightness_max);
 
 	if (!bl_lvl && value)
 		bl_lvl = 1;
+#else
+	bl_lvl = wingtech_mdss_get_bl_bright_value(mfd, value, true);
+	pr_debug("bl_lvl is %d, value is %d\n", bl_lvl, value);
+#endif
+
 
 	if (!IS_CALIB_MODE_BL(mfd) && (!mfd->ext_bl_ctrl || !value ||
 							!mfd->bl_level)) {
@@ -310,8 +433,15 @@ static enum led_brightness mdss_fb_get_bl_brightness(
 	struct msm_fb_data_type *mfd = dev_get_drvdata(led_cdev->dev->parent);
 	enum led_brightness value;
 
+
+#if 1
+	value = wingtech_mdss_get_bl_bright_value(mfd, mfd->bl_level_usr, false);
+	pr_debug("get value is %d, value is %d\n", value, mfd->bl_level_usr);
+#else
 	MDSS_BL_TO_BRIGHT(value, mfd->bl_level_usr, mfd->panel_info->bl_max,
 			  mfd->panel_info->brightness_max);
+#endif
+
 
 	return value;
 }
@@ -1430,7 +1560,11 @@ static int mdss_fb_remove(struct platform_device *pdev)
 
 	if (!mfd)
 		return -ENODEV;
-
+	if (mfd->panel_info && mfd->panel_info->is_prim_panel) {
+		atomic_set(&prim_panel_is_on, false);
+		cancel_delayed_work_sync(&prim_panel_work);
+		wake_lock_destroy(&prim_panel_wakelock);
+	}
 	mdss_fb_remove_sysfs(mfd);
 
 	pm_runtime_disable(mfd->fbi->dev);
@@ -1606,6 +1740,29 @@ static int mdss_fb_resume(struct platform_device *pdev)
 #endif
 
 #ifdef CONFIG_PM_SLEEP
+static int mdss_fb_pm_prepare(struct device *dev)
+{
+	struct msm_fb_data_type *mfd = dev_get_drvdata(dev);
+
+	if (!mfd)
+		return -ENODEV;
+	if (mfd->panel_info->is_prim_panel)
+		atomic_inc(&mfd->resume_pending);
+	return 0;
+}
+
+static void mdss_fb_pm_complete(struct device *dev)
+{
+	struct msm_fb_data_type *mfd = dev_get_drvdata(dev);
+
+	if (!mfd)
+		return;
+	if (mfd->panel_info->is_prim_panel) {
+		atomic_set(&mfd->resume_pending, 0);
+		wake_up_all(&mfd->resume_wait_q);
+	}
+	return;
+}
 static int mdss_fb_pm_suspend(struct device *dev)
 {
 	struct msm_fb_data_type *mfd = dev_get_drvdata(dev);
@@ -1660,6 +1817,8 @@ static int mdss_fb_pm_resume(struct device *dev)
 #endif
 
 static const struct dev_pm_ops mdss_fb_pm_ops = {
+	.prepare = mdss_fb_pm_prepare,
+	.complete = mdss_fb_pm_complete,
 	SET_SYSTEM_SLEEP_PM_OPS(mdss_fb_pm_suspend, mdss_fb_pm_resume)
 };
 
@@ -2095,7 +2254,13 @@ static int mdss_fb_blank(int blank_mode, struct fb_info *info)
 	int ret;
 	struct mdss_panel_data *pdata;
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
-
+	if ((info == prim_fbi) && (blank_mode == FB_BLANK_UNBLANK || blank_mode ==FB_BLANK_NORMAL) &&
+		atomic_read(&prim_panel_is_on)) {
+		atomic_set(&prim_panel_is_on, false);
+		wake_unlock(&prim_panel_wakelock);
+		cancel_delayed_work_sync(&prim_panel_work);
+		return 0;
+	}
 	ret = mdss_fb_pan_idle(mfd);
 	if (ret) {
 		pr_warn("mdss_fb_pan_idle for fb%d failed. ret=%d\n",
@@ -2104,6 +2269,10 @@ static int mdss_fb_blank(int blank_mode, struct fb_info *info)
 	}
 
 	mutex_lock(&mfd->mdss_sysfs_lock);
+
+
+	pr_err("mode: %d, op_enable = %d.\n", blank_mode, mfd->op_enable);
+
 
 	if (mfd->op_enable == 0) {
 		if (blank_mode == FB_BLANK_UNBLANK)
@@ -2138,6 +2307,8 @@ static int mdss_fb_blank(int blank_mode, struct fb_info *info)
 
 end:
 	mutex_unlock(&mfd->mdss_sysfs_lock);
+
+	pr_err("mode: %d, ret = %d.\n", blank_mode, ret);
 
 	return ret;
 }
@@ -2732,6 +2903,7 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 	atomic_set(&mfd->commits_pending, 0);
 	atomic_set(&mfd->ioctl_ref_cnt, 0);
 	atomic_set(&mfd->kickoff_pending, 0);
+	atomic_set(&mfd->resume_pending, 0);
 
 	init_timer(&mfd->no_update.timer);
 	mfd->no_update.timer.function = mdss_fb_no_update_notify_timer_cb;
@@ -2747,6 +2919,7 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 	init_waitqueue_head(&mfd->idle_wait_q);
 	init_waitqueue_head(&mfd->ioctl_q);
 	init_waitqueue_head(&mfd->kickoff_wait_q);
+	init_waitqueue_head(&mfd->resume_wait_q);
 
 	ret = fb_alloc_cmap(&fbi->cmap, 256, 0);
 	if (ret)
@@ -2764,6 +2937,12 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 	mdss_panel_debugfs_init(panel_info, panel_name);
 	pr_info("FrameBuffer[%d] %dx%d registered successfully!\n", mfd->index,
 					fbi->var.xres, fbi->var.yres);
+	if (panel_info->is_prim_panel) {
+		prim_fbi = fbi;
+		atomic_set(&prim_panel_is_on, false);
+		INIT_DELAYED_WORK(&prim_panel_work, prim_panel_off_delayed_work);
+		wake_lock_init(&prim_panel_wakelock, WAKE_LOCK_SUSPEND, "prim_panel_wakelock");
+	}
 
 	return 0;
 }
@@ -3478,11 +3657,18 @@ int mdss_fb_atomic_commit(struct fb_info *info,
 	mfd->msm_fb_backup.disp_commit.r_roi =  commit_v1->right_roi;
 	mfd->msm_fb_backup.disp_commit.flags =  commit_v1->flags;
 	if (commit_v1->flags & MDP_COMMIT_UPDATE_BRIGHTNESS) {
+
+#if 1
+		mfd->bl_extn_level = wingtech_mdss_get_bl_bright_value(mfd,
+			commit_v1->bl_level, true);
+#else
 		MDSS_BRIGHT_TO_BL(mfd->bl_extn_level, commit_v1->bl_level,
 			mfd->panel_info->bl_max,
 			mfd->panel_info->brightness_max);
 		if (!mfd->bl_extn_level && commit_v1->bl_level)
 			mfd->bl_extn_level = 1;
+#endif
+
 	} else
 		mfd->bl_extn_level = -1;
 
@@ -3507,19 +3693,16 @@ static int mdss_fb_pan_display(struct fb_var_screeninfo *var,
 {
 	struct mdp_display_commit disp_commit;
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
-	struct mdss_data_type *mdata = mfd_to_mdata(mfd);
 
 	/*
-	 * Abort pan_display operations in following cases:
-	 * 1. during mode switch through mode sysfs node, it will trigger a
-	 *    pan_display after switch. This assumes that fb has been adjusted,
-	 *    however when using overlays we may not have the right size at this
-	 *    point, so it needs to go through PREPARE first.
-	 * 2. When the splash handoff is pending.
+	 * during mode switch through mode sysfs node, it will trigger a
+	 * pan_display after switch. This assumes that fb has been adjusted,
+	 * however when using overlays we may not have the right size at this
+	 * point, so it needs to go through PREPARE first. Abort pan_display
+	 * operations until that happens
 	 */
-	if ((mfd->switch_state != MDSS_MDP_NO_UPDATE_REQUESTED) ||
-		(mdss_fb_is_hdmi_primary(mfd) && mdata->handoff_pending)) {
-		pr_debug("fb%d: pan_display skipped during switch or handoff\n",
+	if (mfd->switch_state != MDSS_MDP_NO_UPDATE_REQUESTED) {
+		pr_debug("fb%d: pan_display skipped during switch\n",
 				mfd->index);
 		return 0;
 	}
@@ -3992,7 +4175,7 @@ static int mdss_fb_set_par(struct fb_info *info)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
 	struct fb_var_screeninfo *var = &info->var;
-	int old_imgType, old_format, out_format;
+	int old_imgType, old_format;
 	int ret = 0;
 
 	ret = mdss_fb_pan_idle(mfd);
@@ -4075,23 +4258,17 @@ static int mdss_fb_set_par(struct fb_info *info)
 		mfd->fbi->fix.smem_len = PAGE_ALIGN(mfd->fbi->fix.line_length *
 				mfd->fbi->var.yres) * mfd->fb_page;
 
-	old_format = mfd->panel_info->out_format;
-	out_format = mdss_grayscale_to_mdp_format(var->grayscale);
-	if (!IS_ERR_VALUE(out_format)) {
-		mfd->panel_info->out_format = out_format;
+	old_format = mdss_grayscale_to_mdp_format(var->grayscale);
+	if (!IS_ERR_VALUE(old_format)) {
 		if (old_format != mfd->panel_info->out_format)
 			mfd->panel_reconfig = true;
 	}
-
-	if (mdss_fb_is_hdmi_primary(mfd) && mfd->panel_reconfig)
-		mfd->force_null_commit = true;
 
 	if (mfd->panel_reconfig || (mfd->fb_imgType != old_imgType)) {
 		mdss_fb_blank_sub(FB_BLANK_POWERDOWN, info, mfd->op_enable);
 		mdss_fb_var_to_panelinfo(var, mfd->panel_info);
 		mdss_fb_blank_sub(FB_BLANK_UNBLANK, info, mfd->op_enable);
 		mfd->panel_reconfig = false;
-		mfd->force_null_commit = false;
 	}
 
 	return ret;

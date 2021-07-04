@@ -2337,8 +2337,14 @@ static void cleanup_mapped_device(struct mapped_device *md)
 		put_disk(md->disk);
 	}
 
-	if (md->queue)
+	if (md->queue) {
+		if (md->queue->backing_dev_info) {
+			md->queue->backing_dev_info->congested_fn = NULL;
+			wmb();
+			md->queue->backing_dev_info->congested_data = NULL;
+		}
 		blk_cleanup_queue(md->queue);
+	}
 
 	cleanup_srcu_struct(&md->io_barrier);
 

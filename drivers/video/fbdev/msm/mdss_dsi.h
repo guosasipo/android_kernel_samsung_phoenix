@@ -486,6 +486,9 @@ struct mdss_dsi_ctrl_pdata {
 	u32 esc_clk_rate_hz;
 	bool refresh_clk_rate; /* flag to recalculate clk_rate */
 	struct dss_module_power panel_power_data;
+
+	struct dss_module_power panel_post_power_data;
+
 	struct dss_module_power power_data[DSI_MAX_PM]; /* for 8x10 */
 	u32 dsi_irq_mask;
 	struct mdss_hw *dsi_hw;

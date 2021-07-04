@@ -31,4 +31,6 @@ obj-$(CONFIG_GOLDFISH_TTY)	+= goldfish.o
 obj-$(CONFIG_DA_TTY)		+= metag_da.o
 obj-$(CONFIG_MIPS_EJTAG_FDC_TTY) += mips_ejtag_fdc.o
 
+obj-$(CONFIG_PRESS_KEY_TRIGGER_PANIC)	+= trigger_panic.o
+
 obj-y += ipwireless/

@@ -21,10 +21,20 @@
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
+extern int fusionid_eepromid;
+
+
 DEFINE_MSM_MUTEX(msm_eeprom_mutex);
 #ifdef CONFIG_COMPAT
 static struct v4l2_file_operations msm_eeprom_v4l2_subdev_fops;
 #endif
+
+static int module_id;
+int main_module_id; /*main camera*/
+int sub_module_id;  /*front camera*/
+int aux_module_id;  /*aux camera*/
+int s5k5e9_insensor_read_otp_info(struct msm_eeprom_ctrl_t *e_ctrl, struct msm_eeprom_memory_block_t *block);
+int s5k5e9_qtech_insensor_read_otp_info(struct msm_eeprom_ctrl_t *e_ctrl, struct msm_eeprom_memory_block_t *block);
 
 /**
   * msm_get_read_mem_size - Get the total size for allocation
@@ -159,6 +169,33 @@ static int read_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl,
 
 	eb_info = e_ctrl->eboard_info;
 
+    if (!strcmp(eb_info->eeprom_name, "s5k5e9_sunny")) {
+		if (emap[0].saddr.addr) {
+			eb_info->i2c_slaveaddr = emap[0].saddr.addr;
+			e_ctrl->i2c_client.cci_client->sid =
+					eb_info->i2c_slaveaddr >> 1;
+			pr_info("qcom,slave-addr = 0x%X\n",
+				eb_info->i2c_slaveaddr);
+		}
+		rc = s5k5e9_insensor_read_otp_info(e_ctrl, block);
+		if (rc < 0) {
+			pr_err("%s s5k5e9_sunny_insensor_read_otp_info failed!\n", __func__);
+			return rc;
+		}
+	}else if(!strcmp(eb_info->eeprom_name, "s5k5e9_qtech")) {
+		if (emap[0].saddr.addr) {
+			eb_info->i2c_slaveaddr = emap[0].saddr.addr;
+			e_ctrl->i2c_client.cci_client->sid =
+					eb_info->i2c_slaveaddr >> 1;
+			pr_info("qcom,slave-addr = 0x%X\n",
+				eb_info->i2c_slaveaddr);
+		}
+		rc = s5k5e9_qtech_insensor_read_otp_info(e_ctrl, block);
+		if (rc < 0) {
+			pr_err("%s s5k5e9_qtech_insensor_read_otp_info failed!\n", __func__);
+			return rc;
+		}
+	}else{
 	for (j = 0; j < block->num_map; j++) {
 		if (emap[j].saddr.addr) {
 			eb_info->i2c_slaveaddr = emap[j].saddr.addr;
@@ -223,6 +260,7 @@ static int read_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl,
 				return rc;
 			}
 		}
+	    }
 	}
 	return rc;
 }
@@ -656,12 +694,14 @@ static int msm_eeprom_config(struct msm_eeprom_ctrl_t *e_ctrl,
 		rc = msm_eeprom_get_cmm_data(e_ctrl, cdata);
 		break;
 	case CFG_EEPROM_INIT:
-		if (e_ctrl->userspace_probe == 0) {
+	#if 0
+	if (e_ctrl->userspace_probe == 0) {
 			pr_err("%s:%d Eeprom already probed at kernel boot",
 				__func__, __LINE__);
 			rc = -EINVAL;
 			break;
 		}
+	#endif
 		if (e_ctrl->cal_data.num_data == 0) {
 			rc = eeprom_init_config(e_ctrl, argp);
 			if (rc < 0) {
@@ -1518,12 +1558,14 @@ static int msm_eeprom_config32(struct msm_eeprom_ctrl_t *e_ctrl,
 		rc = eeprom_config_read_cal_data32(e_ctrl, argp);
 		break;
 	case CFG_EEPROM_INIT:
+#if 0
 		if (e_ctrl->userspace_probe == 0) {
 			pr_err("%s:%d Eeprom already probed at kernel boot",
 				__func__, __LINE__);
 			rc = -EINVAL;
 			break;
 		}
+#endif
 		if (e_ctrl->cal_data.num_data == 0) {
 			rc = eeprom_init_config32(e_ctrl, argp);
 			if (rc < 0)
@@ -1578,7 +1620,6 @@ static long msm_eeprom_subdev_fops_ioctl32(struct file *file, unsigned int cmd,
 }
 
 #endif
-
 static int msm_eeprom_platform_probe(struct platform_device *pdev)
 {
 	int rc = 0;
@@ -1727,6 +1768,97 @@ static int msm_eeprom_platform_probe(struct platform_device *pdev)
 		for (j = 0; j < e_ctrl->cal_data.num_data; j++)
 			CDBG("memory_data[%d] = 0x%X\n", j,
 				e_ctrl->cal_data.mapdata[j]);
+
+		printk("match id for %s\n", eb_info->eeprom_name);
+		if (!strcmp(eb_info->eeprom_name, "s5k2l8_front")) {
+			if (e_ctrl->cal_data.mapdata[0] == 0x55) {
+				module_id = e_ctrl->cal_data.mapdata[1] & 0x1f;
+			} else {
+				module_id = 0;
+			}
+			if (module_id == 0x01) {
+				printk("match id for %s success\n", eb_info->eeprom_name);
+				sub_module_id = module_id;
+			} else {
+				pr_err("%s match id for %s failed, module_id=%d\n", __func__, eb_info->eeprom_name, module_id);
+				goto power_down;
+			}
+		} else if (!strcmp(eb_info->eeprom_name, "s5k2l8_front_qtech")) {
+			if (e_ctrl->cal_data.mapdata[0] == 0x55) {
+				module_id = e_ctrl->cal_data.mapdata[1] & 0x1f;
+			} else {
+				module_id = 0;
+			}
+			if (module_id == 0xb) {
+				printk("match id for %s success\n", eb_info->eeprom_name);
+				sub_module_id = module_id;
+			} else {
+				pr_err("%s match id for %s failed, module_id=%d\n", __func__, eb_info->eeprom_name, module_id);
+				goto power_down;
+			}
+		} else if (!strcmp(eb_info->eeprom_name, "sunny_s5k2l8_master")) {
+			if (e_ctrl->cal_data.mapdata[0] == 0x55){
+				module_id = e_ctrl->cal_data.mapdata[1] & 0x1f;
+				fusionid_eepromid=module_id;
+			} else {
+				module_id = 0;
+			}
+			if (module_id == 0x01) {
+				printk("match id for %s success, fusionid_eepromid=%d\n", eb_info->eeprom_name, fusionid_eepromid);
+				main_module_id = module_id;
+			} else {
+				pr_err("%s match id for %s failed, module_id=%d, fusionid_eepromid=%d\n", __func__, eb_info->eeprom_name, module_id, fusionid_eepromid);
+				goto power_down;
+			}
+		} else if (!strcmp(eb_info->eeprom_name, "qtech_s5k2l8_master")){
+			if (e_ctrl->cal_data.mapdata[0] == 0x55){
+				module_id = e_ctrl->cal_data.mapdata[1] & 0x1f;
+				fusionid_eepromid=module_id;
+			} else{
+				module_id = 0;
+			}
+			if (module_id == 0xb) {
+				printk("match id for %s success, fusionid_eepromid=%d\n", eb_info->eeprom_name, fusionid_eepromid);
+				main_module_id = module_id;
+			} else {
+				pr_err("%s match id for %s failed, module_id=%d, fusionid_eepromid=%d\n", __func__, eb_info->eeprom_name, module_id, fusionid_eepromid);
+				goto power_down;
+			}
+		} else if (!strcmp(eb_info->eeprom_name, "s5k5e9_sunny")) {
+			if (e_ctrl->cal_data.mapdata[20] == 0x55) { 
+				module_id = e_ctrl->cal_data.mapdata[21] & 0x1f;
+			} else if (e_ctrl->cal_data.mapdata[0] == 0x55) {
+				module_id = e_ctrl->cal_data.mapdata[1] & 0x1f;
+			} else {
+				module_id = 0;
+			}
+			if (module_id == 0x01) {
+				printk("match id for %s success\n", eb_info->eeprom_name);
+				aux_module_id = module_id;
+			} else {
+				pr_err("%s match id for %s failed, module_id=%d\n", __func__, eb_info->eeprom_name, module_id);
+				goto power_down;
+			}
+		} else if (!strcmp(eb_info->eeprom_name, "s5k5e9_qtech")) {
+			if (e_ctrl->cal_data.mapdata[9] == 0x55) {
+				module_id = e_ctrl->cal_data.mapdata[10];
+			} else if (e_ctrl->cal_data.mapdata[0] == 0x55) {
+				module_id = e_ctrl->cal_data.mapdata[1];
+			} else {
+				module_id = 0;
+			}
+			if (module_id == 0xb) {
+				printk("match id for %s success\n", eb_info->eeprom_name);
+				aux_module_id = module_id;
+			} else {
+				pr_err("%s match id for %s failed, module_id=%d\n", __func__, eb_info->eeprom_name, module_id);
+				goto power_down;
+			}
+		} else {
+			pr_err("%s eeprom name match failed:%s\n",
+			       __func__, eb_info->eeprom_name);
+			goto power_down;
+		}
 
 		e_ctrl->is_supported |= msm_eeprom_match_crc(&e_ctrl->cal_data);
 

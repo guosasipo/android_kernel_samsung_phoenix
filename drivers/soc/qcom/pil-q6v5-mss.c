@@ -32,6 +32,7 @@
 #include <soc/qcom/ramdump.h>
 #include <soc/qcom/smem.h>
 #include <soc/qcom/smsm.h>
+#include <linux/wt_system_monitor.h>
 
 #include "peripheral-loader.h"
 #include "pil-q6v5.h"
@@ -53,15 +54,25 @@ static void log_modem_sfr(void)
 							SMEM_ANY_HOST_FLAG);
 	if (!smem_reason || !size) {
 		pr_err("modem subsystem failure reason: (unknown, smem_get_entry_no_rlock failed).\n");
+#ifdef WT_BOOT_REASON
+		strcpy(subsys_restart_reason, "(unknown, smem_get_entry_no_rlock failed)");
+#endif
 		return;
 	}
 	if (!smem_reason[0]) {
 		pr_err("modem subsystem failure reason: (unknown, empty string found).\n");
+#ifdef WT_BOOT_REASON
+		strcpy(subsys_restart_reason, "(unknown, empty string found)");
+#endif
 		return;
 	}
 
 	strlcpy(reason, smem_reason, min(size, MAX_SSR_REASON_LEN));
 	pr_err("modem subsystem failure reason: %s.\n", reason);
+
+#ifdef WT_BOOT_REASON
+	strcpy(subsys_restart_reason, "(unknown, empty string found)");
+#endif
 
 	smem_reason[0] = '\0';
 	wmb();

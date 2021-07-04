@@ -34,6 +34,7 @@
 #include <soc/qcom/restart.h>
 #include <soc/qcom/watchdog.h>
 #include <soc/qcom/minidump.h>
+#include <linux/wt_system_monitor.h>
 
 #define EMERGENCY_DLOAD_MAGIC1    0x322A4F99
 #define EMERGENCY_DLOAD_MAGIC2    0xC67E4350
@@ -159,6 +160,7 @@ static bool get_dload_mode(void)
 
 static void enable_emergency_dload_mode(void)
 {
+#ifndef WT_FINAL_RELEASE
 	int ret;
 
 	if (emergency_dload_mode_addr) {
@@ -180,6 +182,9 @@ static void enable_emergency_dload_mode(void)
 	ret = scm_set_dload_mode(SCM_EDLOAD_MODE, 0);
 	if (ret)
 		pr_err("Failed to set secure EDLOAD mode: %d\n", ret);
+#else
+		pr_err("Failed to set secure EDLOAD mode \n");
+#endif
 }
 
 static int dload_set(const char *val, struct kernel_param *kp)
@@ -285,12 +290,12 @@ static void msm_restart_prepare(const char *cmd)
 
 	if (qpnp_pon_check_hard_reset_stored()) {
 		/* Set warm reset as true when device is in dload mode */
-		if (get_dload_mode() ||
+		if (get_dload_mode() || in_panic ||
 			((cmd != NULL && cmd[0] != '\0') &&
 			!strcmp(cmd, "edl")))
 			need_warm_reset = true;
 	} else {
-		need_warm_reset = (get_dload_mode() ||
+		need_warm_reset = (get_dload_mode() || in_panic ||
 				(cmd != NULL && cmd[0] != '\0'));
 	}
 
@@ -302,7 +307,13 @@ static void msm_restart_prepare(const char *cmd)
 	}
 
 	if (cmd != NULL) {
+#ifdef WT_SYSTEM_MONITOR
+		set_reset_magic(RESET_MAGIC_CMD_REBOOT);
+#endif
 		if (!strncmp(cmd, "bootloader", 10)) {
+#ifndef WT_FINAL_RELEASE
+			qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
+#endif
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_BOOTLOADER);
 			__raw_writel(0x77665500, restart_reason);
