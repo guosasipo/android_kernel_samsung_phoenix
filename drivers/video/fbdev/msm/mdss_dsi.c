@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -386,6 +386,18 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 	if (mdss_dsi_pinctrl_set_state(ctrl_pdata, false))
 		pr_debug("reset disable: pinctrl not enabled\n");
 
+
+	{
+		int tRet = 0;
+		tRet = msm_dss_enable_vreg(
+			ctrl_pdata->panel_post_power_data.vreg_config,
+			ctrl_pdata->panel_post_power_data.num_vreg, 0);
+		if (tRet)
+			pr_err("%s: failed to disable vregs for panel_post_power_data.\n",
+				__func__);
+	}
+
+
 	ret = msm_dss_enable_vreg(
 		ctrl_pdata->panel_power_data.vreg_config,
 		ctrl_pdata->panel_power_data.num_vreg, 0);
@@ -434,6 +446,19 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 		if (ret)
 			pr_err("%s: Panel reset failed. rc=%d\n",
 					__func__, ret);
+
+
+		{
+			int tRet = 0;
+			tRet = msm_dss_enable_vreg(
+				ctrl_pdata->panel_post_power_data.vreg_config,
+				ctrl_pdata->panel_post_power_data.num_vreg, 1);
+			if (tRet) {
+				pr_err("%s: failed to enable vregs for panel_post_power_data.\n",
+					__func__);
+			}
+		}
+
 	}
 
 	return ret;
@@ -693,6 +718,185 @@ novreg:
 
 	return rc;
 }
+
+
+static int mdss_dsi_get_post_power_vreg_data(struct device *dev,
+	struct device_node *of_node, struct dss_module_power *mp,
+	const char *pm_supply_name)
+{
+	int i = 0, rc = 0;
+	u32 tmp = 0;
+	struct device_node *supply_node = NULL;
+	//const char *pm_supply_name = NULL;
+	struct device_node *supply_root_node = NULL;
+
+	if (!dev || !mp) {
+		pr_err("%s: invalid input\n", __func__);
+		rc = -EINVAL;
+		return rc;
+	}
+
+	mp->num_vreg = 0;
+	//pm_supply_name = __mdss_dsi_pm_supply_node_name(module);
+	supply_root_node = of_get_child_by_name(of_node, pm_supply_name);
+	if (!supply_root_node) {
+		/*
+		 * Try to get the root node for panel power supply using
+		 * of_parse_phandle() API if of_get_child_by_name() API fails.
+		 */
+		supply_root_node = of_parse_phandle(of_node, pm_supply_name, 0);
+		if (!supply_root_node) {
+			pr_err("no supply entry present: %s\n", pm_supply_name);
+			goto novreg;
+		}
+	}
+
+
+	for_each_child_of_node(supply_root_node, supply_node) {
+		mp->num_vreg++;
+	}
+
+	if (mp->num_vreg == 0) {
+		pr_debug("%s: no vreg\n", __func__);
+		goto novreg;
+	} else {
+		pr_debug("%s: vreg found. count=%d\n", __func__, mp->num_vreg);
+	}
+
+	mp->vreg_config = devm_kzalloc(dev, sizeof(struct dss_vreg) *
+		mp->num_vreg, GFP_KERNEL);
+	if (!mp->vreg_config) {
+		pr_err("%s: can't alloc vreg mem\n", __func__);
+		rc = -ENOMEM;
+		goto error;
+	}
+
+	for_each_child_of_node(supply_root_node, supply_node) {
+		const char *st = NULL;
+		/* vreg-name */
+		rc = of_property_read_string(supply_node,
+			"qcom,supply-name", &st);
+		if (rc) {
+			pr_err("%s: error reading name. rc=%d\n",
+				__func__, rc);
+			goto error;
+		}
+		snprintf(mp->vreg_config[i].vreg_name,
+			ARRAY_SIZE((mp->vreg_config[i].vreg_name)), "%s", st);
+		/* vreg-min-voltage */
+		rc = of_property_read_u32(supply_node,
+			"qcom,supply-min-voltage", &tmp);
+		if (rc) {
+			pr_err("%s: error reading min volt. rc=%d\n",
+				__func__, rc);
+			goto error;
+		}
+		mp->vreg_config[i].min_voltage = tmp;
+
+		/* vreg-max-voltage */
+		rc = of_property_read_u32(supply_node,
+			"qcom,supply-max-voltage", &tmp);
+		if (rc) {
+			pr_err("%s: error reading max volt. rc=%d\n",
+				__func__, rc);
+			goto error;
+		}
+		mp->vreg_config[i].max_voltage = tmp;
+
+		/* enable-load */
+		rc = of_property_read_u32(supply_node,
+			"qcom,supply-enable-load", &tmp);
+		if (rc) {
+			pr_err("%s: error reading enable load. rc=%d\n",
+				__func__, rc);
+			goto error;
+		}
+		mp->vreg_config[i].enable_load = tmp;
+
+		/* disable-load */
+		rc = of_property_read_u32(supply_node,
+			"qcom,supply-disable-load", &tmp);
+		if (rc) {
+			pr_err("%s: error reading disable load. rc=%d\n",
+				__func__, rc);
+			goto error;
+		}
+		mp->vreg_config[i].disable_load = tmp;
+
+		/* pre-sleep */
+		rc = of_property_read_u32(supply_node,
+			"qcom,supply-pre-on-sleep", &tmp);
+		if (rc) {
+			pr_debug("%s: error reading supply pre sleep value. rc=%d\n",
+				__func__, rc);
+			rc = 0;
+		} else {
+			mp->vreg_config[i].pre_on_sleep = tmp;
+		}
+
+		rc = of_property_read_u32(supply_node,
+			"qcom,supply-pre-off-sleep", &tmp);
+		if (rc) {
+			pr_debug("%s: error reading supply pre sleep value. rc=%d\n",
+				__func__, rc);
+			rc = 0;
+		} else {
+			mp->vreg_config[i].pre_off_sleep = tmp;
+		}
+
+		/* post-sleep */
+		rc = of_property_read_u32(supply_node,
+			"qcom,supply-post-on-sleep", &tmp);
+		if (rc) {
+			pr_debug("%s: error reading supply post sleep value. rc=%d\n",
+				__func__, rc);
+			rc = 0;
+		} else {
+			mp->vreg_config[i].post_on_sleep = tmp;
+		}
+
+		rc = of_property_read_u32(supply_node,
+			"qcom,supply-post-off-sleep", &tmp);
+		if (rc) {
+			pr_debug("%s: error reading supply post sleep value. rc=%d\n",
+				__func__, rc);
+			rc = 0;
+		} else {
+			mp->vreg_config[i].post_off_sleep = tmp;
+		}
+
+		mp->vreg_config[i].lp_disable_allowed =
+			of_property_read_bool(supply_node,
+			"qcom,supply-lp-mode-disable-allowed");
+
+		pr_info("%s: %s min=%d, max=%d, enable=%d, disable=%d, preonsleep=%d, postonsleep=%d, preoffsleep=%d, postoffsleep=%d lp_disable_allowed=%d\n",
+			__func__,
+			mp->vreg_config[i].vreg_name,
+			mp->vreg_config[i].min_voltage,
+			mp->vreg_config[i].max_voltage,
+			mp->vreg_config[i].enable_load,
+			mp->vreg_config[i].disable_load,
+			mp->vreg_config[i].pre_on_sleep,
+			mp->vreg_config[i].post_on_sleep,
+			mp->vreg_config[i].pre_off_sleep,
+			mp->vreg_config[i].post_off_sleep,
+			mp->vreg_config[i].lp_disable_allowed);
+		++i;
+	}
+
+	return rc;
+
+error:
+	if (mp->vreg_config) {
+		devm_kfree(dev, mp->vreg_config);
+		mp->vreg_config = NULL;
+	}
+novreg:
+	mp->num_vreg = 0;
+
+	return rc;
+}
+
 
 static int mdss_dsi_get_panel_cfg(char *panel_cfg,
 				struct mdss_dsi_ctrl_pdata *ctrl)
@@ -1324,8 +1528,25 @@ static int mdss_dsi_off(struct mdss_panel_data *pdata, int power_state)
 
 	if (mdss_panel_is_power_on(power_state)) {
 		pr_debug("%s: dsi_off with panel always on\n", __func__);
+
+		if (pdata->panel_info.mipi.lp11_deinit == true) {
+			ret = mdss_dsi_panel_power_ctrl(pdata, power_state);
+			if (ret) {
+				pr_err("%s: Panel power off failed line(%d) ret = %d.\n", __func__, __LINE__, ret);
+			}
+		}
+
 		goto panel_power_ctrl;
 	}
+
+
+	if (pdata->panel_info.mipi.lp11_deinit == true) {
+		ret = mdss_dsi_panel_power_ctrl(pdata, power_state);
+		if (ret) {
+			pr_err("%s: Panel power off failed line(%d) ret = %d.\n", __func__, __LINE__, ret);
+		}
+	}
+
 
 	/*
 	 * Link clocks should be turned off before PHY can be disabled.
@@ -1354,11 +1575,14 @@ static int mdss_dsi_off(struct mdss_panel_data *pdata, int power_state)
 			  MDSS_DSI_CORE_CLK, MDSS_DSI_CLK_OFF);
 
 panel_power_ctrl:
-	ret = mdss_dsi_panel_power_ctrl(pdata, power_state);
+
+	if (pdata->panel_info.mipi.lp11_deinit == false)
+		ret = mdss_dsi_panel_power_ctrl(pdata, power_state);
 	if (ret) {
-		pr_err("%s: Panel power off failed\n", __func__);
+		pr_err("%s: Panel power off failed line(%d) ret = %d.\n", __func__, __LINE__, ret);
 		goto end;
 	}
+
 
 	if (panel_info->dynamic_fps
 	    && (panel_info->dfps_update == DFPS_SUSPEND_RESUME_MODE)
@@ -1570,6 +1794,20 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 		if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
 			pr_debug("reset enable: pinctrl not enabled\n");
 		mdss_dsi_panel_reset(pdata, 1);
+
+
+		{
+			int tRet = 0;
+
+			tRet = msm_dss_enable_vreg(
+				ctrl_pdata->panel_post_power_data.vreg_config,
+				ctrl_pdata->panel_post_power_data.num_vreg, 1);
+			if (tRet) {
+				pr_err("%s: failed to enable vregs for panel_post_power_data.\n",
+					__func__);
+			}
+		}
+
 	}
 
 	if (mipi->init_delay)
@@ -1704,7 +1942,7 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 		mipi->vsync_enable && mipi->hw_vsync_mode) {
 		mdss_dsi_set_tear_on(ctrl_pdata);
 		if (mdss_dsi_is_te_based_esd(ctrl_pdata))
-			panel_update_te_irq(pdata, true);
+			enable_irq(gpio_to_irq(ctrl_pdata->disp_te_gpio));
 	}
 
 	ctrl_pdata->ctrl_state |= CTRL_STATE_PANEL_INIT;
@@ -1775,8 +2013,9 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 	if ((pdata->panel_info.type == MIPI_CMD_PANEL) &&
 		mipi->vsync_enable && mipi->hw_vsync_mode) {
 		if (mdss_dsi_is_te_based_esd(ctrl_pdata)) {
-			panel_update_te_irq(pdata, false);
-			atomic_dec(&ctrl_pdata->te_irq_ready);
+				disable_irq(gpio_to_irq(
+					ctrl_pdata->disp_te_gpio));
+				atomic_dec(&ctrl_pdata->te_irq_ready);
 		}
 		mdss_dsi_set_tear_off(ctrl_pdata);
 	}
@@ -3685,7 +3924,6 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 
 	pdata = &ctrl_pdata->panel_data;
 	init_completion(&pdata->te_done);
-	mutex_init(&pdata->te_mutex);
 	if (pdata->panel_info.type == MIPI_CMD_PANEL) {
 		if (!te_irq_registered) {
 			rc = devm_request_irq(&pdev->dev,
@@ -4210,6 +4448,15 @@ static int mdss_dsi_ctrl_remove(struct platform_device *pdev)
 				__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
 	mdss_dsi_put_dt_vreg_data(&pdev->dev, &ctrl_pdata->panel_power_data);
 
+
+	if (msm_dss_config_vreg(&pdev->dev,
+			ctrl_pdata->panel_post_power_data.vreg_config,
+			ctrl_pdata->panel_post_power_data.num_vreg, 1) < 0)
+		pr_err("%s: failed to de-init vregs for panel_post_power_data.\n",
+				__func__);
+	mdss_dsi_put_dt_vreg_data(&pdev->dev, &ctrl_pdata->panel_post_power_data);
+
+
 	mfd = platform_get_drvdata(pdev);
 	msm_dss_iounmap(&ctrl_pdata->mmss_misc_io);
 	msm_dss_iounmap(&ctrl_pdata->phy_io);
@@ -4656,6 +4903,23 @@ int dsi_panel_device_register(struct platform_device *ctrl_pdev,
 						__func__, rc);
 		return rc;
 	}
+
+
+	rc = mdss_dsi_get_post_power_vreg_data(&ctrl_pdev->dev, pan_node,
+		&ctrl_pdata->panel_post_power_data, "qcom,panel-post-supply-entries");
+	if (rc) {
+		DEV_ERR("%s: get_post_power_vreg_data failed.rc=%d\n",
+			__func__, rc);
+	}
+
+	rc = msm_dss_config_vreg(&ctrl_pdev->dev,
+		ctrl_pdata->panel_post_power_data.vreg_config,
+		ctrl_pdata->panel_post_power_data.num_vreg, 1);
+	if (rc) {
+		pr_err("%s: failed to init panel_post_power_data regulator, rc=%d\n",
+						__func__, rc);
+	}
+
 
 	rc = mdss_dsi_parse_ctrl_params(ctrl_pdev, pan_node, ctrl_pdata);
 	if (rc) {

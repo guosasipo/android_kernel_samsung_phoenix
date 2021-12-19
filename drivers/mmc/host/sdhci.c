@@ -2723,13 +2723,19 @@ static void sdhci_card_event(struct mmc_host *mmc)
 	struct sdhci_host *host = mmc_priv(mmc);
 	unsigned long flags;
 	int present;
+	char *card_tray_remove[2] = { "CARD_TRAY_STATE=remove",NULL };
+	char *card_tray_add[2] = { "CARD_TRAY_STATE=add",NULL };
 
 	/* First check if client has provided their own card event */
 	if (host->ops->card_event)
 		host->ops->card_event(host);
 
 	present = sdhci_do_get_cd(host);
-
+	if(!present){
+			kobject_uevent_env(&mmc->class_dev.kobj,KOBJ_CHANGE, card_tray_remove);
+	}else if(present==1){
+			kobject_uevent_env(&mmc->class_dev.kobj,KOBJ_CHANGE, card_tray_add);
+	}
 	spin_lock_irqsave(&host->lock, flags);
 
 	/* Check host->mrq first in case we are runtime suspended */

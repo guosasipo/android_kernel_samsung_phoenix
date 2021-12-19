@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017, 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2017, 2019 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -137,8 +137,9 @@
 		dai_mi2s2: qcom,msm-dai-q6-mi2s-tert {
 			compatible = "qcom,msm-dai-q6-mi2s";
 			qcom,msm-dai-q6-mi2s-dev-id = <2>;
-			qcom,msm-mi2s-rx-lines = <0>;
-			qcom,msm-mi2s-tx-lines = <3>;
+			/*Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup*/
+			qcom,msm-mi2s-rx-lines = <1>;
+			qcom,msm-mi2s-tx-lines = <2>;
 		};
 
 		dai_mi2s5: qcom,msm-dai-q6-mi2s-quin {
@@ -355,16 +356,6 @@
 		incall_music_2_rx: qcom,msm-dai-q6-incall-music-2-rx {
 			compatible = "qcom,msm-dai-q6-dev";
 			qcom,msm-dai-q6-dev-id = <32770>;
-		};
-
-		proxy_rx: qcom,msm-dai-q6-proxy-rx {
-			compatible = "qcom,msm-dai-q6-dev";
-			qcom,msm-dai-q6-dev-id = <8194>;
-		};
-
-		proxy_tx: qcom,msm-dai-q6-proxy-tx {
-			compatible = "qcom,msm-dai-q6-dev";
-			qcom,msm-dai-q6-dev-id = <8195>;
 		};
 
 		usb_audio_rx: qcom,msm-dai-q6-usb-audio-rx {
@@ -689,8 +680,7 @@
 				<&dai_pri_tdm_rx_0>, <&dai_pri_tdm_tx_0>,
 				<&dai_sec_tdm_rx_0>, <&dai_sec_tdm_tx_0>,
 				<&dai_tert_tdm_rx_0>, <&dai_tert_tdm_tx_0>,
-				<&dai_quat_tdm_rx_0>, <&dai_quat_tdm_tx_0>,
-				<&proxy_rx>, <&proxy_tx>;
+				<&dai_quat_tdm_rx_0>, <&dai_quat_tdm_tx_0>;
 		asoc-cpu-names = "msm-dai-q6-dp.24608", "msm-dai-q6-mi2s.0",
 				"msm-dai-q6-mi2s.1",
 				"msm-dai-q6-mi2s.2", "msm-dai-q6-mi2s.3",
@@ -713,8 +703,7 @@
 				"msm-dai-q6-tdm.36865", "msm-dai-q6-tdm.36880",
 				"msm-dai-q6-tdm.36881", "msm-dai-q6-tdm.36896",
 				"msm-dai-q6-tdm.36897", "msm-dai-q6-tdm.36912",
-				"msm-dai-q6-tdm.36913",
-				"msm-dai-q6-dev.8194", "msm-dai-q6-dev.8195";
+				"msm-dai-q6-tdm.36913";
 		asoc-codec = <&stub_codec>, <&ext_disp_audio_codec>;
 		asoc-codec-names = "msm-stub-codec.1",
 					"msm-ext-disp-audio-codec-rx";
@@ -796,8 +785,7 @@
 				<&dai_pri_tdm_rx_0>, <&dai_pri_tdm_tx_0>,
 				<&dai_sec_tdm_rx_0>, <&dai_sec_tdm_tx_0>,
 				<&dai_tert_tdm_rx_0>, <&dai_tert_tdm_tx_0>,
-				<&dai_quat_tdm_rx_0>, <&dai_quat_tdm_tx_0>,
-				<&proxy_rx>, <&proxy_tx>;
+				<&dai_quat_tdm_rx_0>, <&dai_quat_tdm_tx_0>;
 		asoc-cpu-names = "msm-dai-q6-dp.24608", "msm-dai-q6-mi2s.0",
 				"msm-dai-q6-mi2s.1",
 				"msm-dai-q6-mi2s.2", "msm-dai-q6-mi2s.3",
@@ -820,8 +808,7 @@
 				"msm-dai-q6-tdm.36865", "msm-dai-q6-tdm.36880",
 				"msm-dai-q6-tdm.36881", "msm-dai-q6-tdm.36896",
 				"msm-dai-q6-tdm.36897", "msm-dai-q6-tdm.36912",
-				"msm-dai-q6-tdm.36913",
-				"msm-dai-q6-dev.8194", "msm-dai-q6-dev.8195";
+				"msm-dai-q6-tdm.36913";
 		asoc-codec = <&stub_codec>, <&ext_disp_audio_codec>;
 		asoc-codec-names = "msm-stub-codec.1",
 					"msm-ext-disp-audio-codec-rx";
@@ -844,12 +831,13 @@
 		qcom,msm-mclk-freq = <9600000>;
 		qcom,msm-mbhc-hphl-swh = <1>;
 		qcom,msm-mbhc-gnd-swh = <1>;
-		qcom,msm-micbias2-ext-cap;
 		qcom,msm-hs-micbias-type = "external";
 		qcom,us-euro-gpios = <&us_euro_gpio>;
 		qcom,cdc-pdm-gpios = <&cdc_pdm_gpios>;
 		qcom,cdc-comp-gpios = <&cdc_comp_gpios>;
 		qcom,cdc-dmic-gpios = <&cdc_dmic_gpios>;
+		/*Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup*/
+		qcom,tert-mi2s-gpios = <&tert_mi2s_gpios>;
 		qcom,audio-routing =
 			"RX_BIAS", "INT_MCLK0",
 			"SPK_RX_BIAS", "INT_MCLK0",
@@ -907,8 +895,7 @@
 				<&dai_pri_tdm_rx_0>, <&dai_pri_tdm_tx_0>,
 				<&dai_sec_tdm_rx_0>, <&dai_sec_tdm_tx_0>,
 				<&dai_tert_tdm_rx_0>, <&dai_tert_tdm_tx_0>,
-				<&dai_quat_tdm_rx_0>, <&dai_quat_tdm_tx_0>,
-				<&proxy_rx>, <&proxy_tx>;
+				<&dai_quat_tdm_rx_0>, <&dai_quat_tdm_tx_0>;
 		asoc-cpu-names = "msm-dai-q6-dp.24608", "msm-dai-q6-mi2s.0",
 				"msm-dai-q6-mi2s.1",
 				"msm-dai-q6-mi2s.2", "msm-dai-q6-mi2s.3",
@@ -927,8 +914,7 @@
 				"msm-dai-q6-tdm.36864", "msm-dai-q6-tdm.36865",
 				"msm-dai-q6-tdm.36880", "msm-dai-q6-tdm.36881",
 				"msm-dai-q6-tdm.36896", "msm-dai-q6-tdm.36897",
-				"msm-dai-q6-tdm.36912", "msm-dai-q6-tdm.36913",
-				"msm-dai-q6-dev.8194", "msm-dai-q6-dev.8195";
+				"msm-dai-q6-tdm.36912", "msm-dai-q6-tdm.36913";
 		asoc-codec = <&stub_codec>, <&msm_digital_codec>,
 				<&pmic_analog_codec>, <&msm_sdw_codec>,
 				<&ext_disp_audio_codec>;

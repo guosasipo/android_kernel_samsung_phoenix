@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2018, 2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1309,7 +1309,7 @@ static void *def_msm_int_wcd_mbhc_cal(void)
 		return NULL;
 
 #define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(msm_int_wcd_cal)->X) = (Y))
-	S(v_hs_max, 1500);
+	S(v_hs_max, 1700);//Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup
 #undef S
 #define S(X, Y) ((WCD_MBHC_CAL_BTN_DET_PTR(msm_int_wcd_cal)->X) = (Y))
 	S(num_btn, WCD_MBHC_DEF_BUTTONS);
@@ -1334,8 +1334,10 @@ static void *def_msm_int_wcd_mbhc_cal(void)
 	 */
 	btn_low[0] = 75;
 	btn_high[0] = 75;
-	btn_low[1] = 150;
-	btn_high[1] = 150;
+// +Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup & headset button bringup
+	btn_low[1] = 130;
+	btn_high[1] = 130;
+// -Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup & headset button bringup
 	btn_low[2] = 225;
 	btn_high[2] = 225;
 	btn_low[3] = 450;
@@ -2431,6 +2433,26 @@ static struct snd_soc_dai_link msm_int_dai[] = {
 		.ignore_pmdown_time = 1,
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA6,
 	},
+// +Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup
+#ifdef CONFIG_SND_SOC_TFA9874
+       { /* hw:x,40 */
+              .name = "Tertiary MI2S_TX Hostless",
+              .stream_name = "Tertiary MI2S_TX Hostless",
+              .cpu_dai_name = "TERT_MI2S_TX_HOSTLESS",
+              .platform_name = "msm-pcm-hostless",
+              .dynamic = 1,
+              .dpcm_capture = 1,
+              .trigger = {SND_SOC_DPCM_TRIGGER_POST,
+                     SND_SOC_DPCM_TRIGGER_POST},
+              .no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+              .ignore_suspend = 1,
+              /* this dainlink has playback support */
+              .ignore_pmdown_time = 1,
+              .codec_dai_name = "snd-soc-dummy-dai",
+              .codec_name = "snd-soc-dummy",
+       },
+#endif
+// -Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup
 };
 
 
@@ -2451,6 +2473,16 @@ static struct snd_soc_dai_link msm_int_wsa_dai[] = {
 		.ignore_pmdown_time = 1,
 	},
 };
+
+// +Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup
+static struct snd_soc_dai_link_component tfa98xx_codecs[] = {
+	{
+		.name = "tfa98xx.2-0034",
+		.of_node = NULL,
+		.dai_name = "tfa98xx-aif-2-34",
+	},
+};
+// -Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup
 
 static struct snd_soc_dai_link msm_int_be_dai[] = {
 	/* Backend I2S DAI Links */
@@ -2585,33 +2617,6 @@ static struct snd_soc_dai_link msm_int_be_dai[] = {
 		.dpcm_playback = 1,
 		.be_id = MSM_BACKEND_DAI_VOICE2_PLAYBACK_TX,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
-		.ignore_suspend = 1,
-	},
-	/* Proxy Tx BACK END DAI Link */
-	{
-		.name = LPASS_BE_PROXY_TX,
-		.stream_name = "Proxy Capture",
-		.cpu_dai_name = "msm-dai-q6-dev.8195",
-		.platform_name = "msm-pcm-routing",
-		.codec_name = "msm-stub-codec.1",
-		.codec_dai_name = "msm-stub-tx",
-		.no_pcm = 1,
-		.dpcm_capture = 1,
-		.be_id = MSM_BACKEND_DAI_PROXY_TX,
-		.ignore_suspend = 1,
-	},
-	/* Proxy Rx BACK END DAI Link */
-	{
-		.name = LPASS_BE_PROXY_RX,
-		.stream_name = "Proxy Playback",
-		.cpu_dai_name = "msm-dai-q6-dev.8194",
-		.platform_name = "msm-pcm-routing",
-		.codec_name = "msm-stub-codec.1",
-		.codec_dai_name = "msm-stub-rx",
-		.no_pcm = 1,
-		.dpcm_playback = 1,
-		.be_id = MSM_BACKEND_DAI_PROXY_RX,
-		.ignore_pmdown_time = 1,
 		.ignore_suspend = 1,
 	},
 	{
@@ -2814,6 +2819,7 @@ static struct snd_soc_dai_link msm_mi2s_be_dai_links[] = {
 		.ops = &msm_mi2s_be_ops,
 		.ignore_suspend = 1,
 	},
+#ifndef CONFIG_SND_SOC_TFA9874//Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup
 	{
 		.name = LPASS_BE_TERT_MI2S_RX,
 		.stream_name = "Tertiary MI2S Playback",
@@ -2843,6 +2849,39 @@ static struct snd_soc_dai_link msm_mi2s_be_dai_links[] = {
 		.ops = &msm_mi2s_be_ops,
 		.ignore_suspend = 1,
 	},
+// +Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup
+#else
+     {
+            .name = LPASS_BE_TERT_MI2S_RX,
+            .stream_name = "Tertiary MI2S Playback",
+            .cpu_dai_name = "msm-dai-q6-mi2s.2",
+            .platform_name = "msm-pcm-routing",
+            .codecs = tfa98xx_codecs,
+            .num_codecs = 1,
+            .no_pcm = 1,
+            .dpcm_playback = 1,
+            .be_id = MSM_BACKEND_DAI_TERTIARY_MI2S_RX,
+            .be_hw_params_fixup = msm_common_be_hw_params_fixup,
+            .ops = &msm_mi2s_be_ops,
+            .ignore_suspend = 1,
+            .ignore_pmdown_time = 1,
+     },
+     {
+            .name = LPASS_BE_TERT_MI2S_TX,
+            .stream_name = "Tertiary MI2S Capture",
+            .cpu_dai_name = "msm-dai-q6-mi2s.2",
+            .platform_name = "msm-pcm-routing",
+            .codecs = tfa98xx_codecs,
+            .num_codecs = 1,
+            .no_pcm = 1,
+            .dpcm_capture = 1,
+            .be_id = MSM_BACKEND_DAI_TERTIARY_MI2S_TX,
+            .be_hw_params_fixup = msm_common_be_hw_params_fixup,
+            .ops = &msm_mi2s_be_ops,
+            .ignore_suspend = 1,
+     },
+#endif
+// -Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup
 	{
 		.name = LPASS_BE_QUAT_MI2S_RX,
 		.stream_name = "Quaternary MI2S Playback",

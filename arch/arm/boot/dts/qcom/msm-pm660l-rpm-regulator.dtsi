@@ -106,13 +106,13 @@
 		qcom,resource-name = "ldob";
 		qcom,resource-id = <3>;
 		qcom,regulator-type = <0>;
-		status = "disabled";
+		status = "okay";
 
 		regulator-l3 {
 			compatible = "qcom,rpm-smd-regulator";
 			regulator-name = "pm660l_l3";
 			qcom,set = <3>;
-			status = "disabled";
+			status = "okay";
 		};
 	};
 

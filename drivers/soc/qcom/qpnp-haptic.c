@@ -1898,8 +1898,8 @@ static int qpnp_hap_auto_res_enable(struct qpnp_hap *hap, int enable)
 		pr_debug("auto_mode enabled, not enabling auto_res\n");
 		return 0;
 	}
-
-	if (!hap->correct_lra_drive_freq && !auto_res_mode_qwd) {
+	// If enable lra_hw_auto_resonance, auto resonance should be run, don't return 0.
+	if (!hap->lra_hw_auto_resonance && !hap->correct_lra_drive_freq && !auto_res_mode_qwd) {
 		pr_debug("correct_lra_drive_freq: %d auto_res_mode_qwd: %d\n",
 			hap->correct_lra_drive_freq, auto_res_mode_qwd);
 		return 0;
@@ -2451,7 +2451,7 @@ static int qpnp_hap_config(struct qpnp_hap *hap)
 	/*
 	 * This denotes the percentage error in rc clock multiplied by 10
 	 */
-	u8 rc_clk_err_percent_x10;
+	//u8 rc_clk_err_percent_x10;
 
 	/* Configure the CFG1 register for actuator type */
 	rc = qpnp_hap_masked_write_reg(hap, QPNP_HAP_CFG1_REG(hap->base),
@@ -2514,6 +2514,7 @@ static int qpnp_hap_config(struct qpnp_hap *hap)
 	 * present in their MISC  block. This register holds the frequency error
 	 * in 19.2 MHz RC clock.
 	 */
+	#if 0
 	if ((hap->act_type == QPNP_HAP_LRA) && hap->correct_lra_drive_freq
 			&& hap->misc_clk_trim_error_reg) {
 		pr_debug("TRIM register = 0x%x\n", hap->clk_trim_error_code);
@@ -2547,6 +2548,7 @@ static int qpnp_hap_config(struct qpnp_hap *hap)
 		else
 			LRA_DRIVE_PERIOD_POS_ERR(hap, rc_clk_err_percent_x10);
 	}
+	#endif 
 
 	pr_debug("Play rate code 0x%x\n", hap->init_drive_period_code);
 

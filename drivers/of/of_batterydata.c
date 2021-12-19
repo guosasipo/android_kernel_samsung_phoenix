@@ -19,6 +19,7 @@
 #include <linux/types.h>
 #include <linux/batterydata-lib.h>
 #include <linux/power_supply.h>
+#include <linux/hardware_info.h>
 
 static int of_batterydata_read_lut(const struct device_node *np,
 			int max_cols, int max_rows, int *ncols, int *nrows,
@@ -386,10 +387,12 @@ struct device_node *of_batterydata_get_best_profile(
 
 	rc = of_property_read_string(best_node, "qcom,battery-type",
 							&battery_type);
-	if (!rc)
+	if (!rc){
 		pr_info("%s found\n", battery_type);
+		hardwareinfo_set_prop(HARDWARE_BATTERY_ID, battery_type);
+	}
 	else
-		pr_info("%s found\n", best_node->name);
+		pr_info("best_node not found\n");
 
 	return best_node;
 }

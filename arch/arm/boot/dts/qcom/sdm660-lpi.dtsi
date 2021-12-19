@@ -208,5 +208,30 @@
 				input-enable;
 			};
 		};
+		/*Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup*/
+		tert_mi2s_gpios_active: tert_mi2s_gpios_active {
+			mux {
+				pins = "gpio4", "gpio5", "gpio6", "gpio7";
+				function = "func4";
+			};
+
+			config {
+				pins = "gpio4", "gpio5", "gpio6", "gpio7";
+				drive-strength = <8>;
+			};
+		};
+
+		tert_mi2s_gpios_sleep: tert_mi2s_gpios_sleep {
+			mux {
+				pins = "gpio4", "gpio5", "gpio6", "gpio7";
+				function = "func4";
+			};
+
+			config {
+				pins = "gpio4", "gpio5", "gpio6", "gpio7";
+				drive-strength = <2>;
+			};
+		};
+		/*-Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup*/
 	};
 };

@@ -307,7 +307,7 @@
 					dev = "/dev/block/platform/soc/c0c4000.sdhci/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,discard";
-					fsmgr_flags = "wait,slotselect,verify";
+					fsmgr_flags = "wait,verify";
 					status = "ok";
 				};
 			};
@@ -412,6 +412,19 @@
 		       reg = <0 0x9f7ff000 0 0x00001000>;
 		       label = "dfps_data_mem";
 		};
+
+		wt_share_mem: wt_region@a0000000 {
+			compatible = "wt_share_mem";
+			no-map;
+			reg = <0 0xa0000000 0 0x00100000>;
+		};
+
+		pstore_mem: ramoops_region@a0100000 {
+			compatible = "ramoops_mem";
+			reg = <0 0xa0100000 0 0x100000>;
+			no-map;
+		};
+
 	};
 
 	bluetooth: bt_wcn3990 {
@@ -479,6 +492,16 @@
 		reg = <0xc184000 0x1F000>;
 		interrupts = <0 239 0>;
 		qcom,summing-threshold = <0x10>;
+	};
+
+	pstore {
+		compatible = "ramoops";
+		memory-region	= <&pstore_mem>;
+		ecc-size	= <0x10>;
+		console-size	= <0x0 0x80000>;
+		record-size	= <0x0 0x40000>;
+		ftrace-size	= <0x0 0x10000>;
+		pmsg-size	= <0x0 0x30000>;
 	};
 
 	restart@10ac000 {
@@ -614,7 +637,7 @@
 		reg = <0x17817000 0x1000>;
 		reg-names = "wdt-base";
 		interrupts = <0 3 0>, <0 4 0>;
-		qcom,bark-time = <11000>;
+		qcom,bark-time = <15000>;
 		qcom,pet-time = <10000>;
 		qcom,ipi-ping;
 		qcom,wakeup-enable;
@@ -683,7 +706,6 @@
 		clocks = <&clock_gcc GCC_BLSP1_QUP3_SPI_APPS_CLK>,
 			<&clock_gcc GCC_BLSP1_AHB_CLK>;
 		clock-frequency = <15000000>;
-		qcom,ipc-gpio = <&tlmm 72 0>;
 		qcom,finger-detect-gpio = <&pm660_gpios 11 0>;
 	};
 
@@ -880,7 +902,8 @@
 			qcom,high-threshold-uamp = <4200000>;
 			qcom,vph-high-threshold-uv = <3500000>;
 			qcom,vph-low-threshold-uv = <3300000>;
-			qcom,soc-low-threshold = <10>;
+
+			qcom,soc-low-threshold = <5>;
 		};
 	};
 
@@ -2183,6 +2206,16 @@
 			compatible = "qcom,msm-imem-minidump";
 			reg = <0xb88 28>;
 		};
+
+		wt_reset_reason_addr@fe4 {
+			compatible = "qcom,msm-imem-wt_reset_reason_addr";
+			reg = <0xfe4 4>;
+		};
+
+		tz_reset_reason_addr@7a4 {
+			compatible = "qcom,msm-imem-tz_reset_reason_addr";
+			reg = <0x7a4 4>;
+		};
 	};
 
 	qcom,ghd {
@@ -2427,6 +2460,18 @@
 		compatible = "qcom,jtag-fuse-v4";
 		reg = <0x786040 0x8>;
 		reg-names = "fuse-base";
+	};
+
+	sn_fuse: snfuse@0x784138 {
+		compatible = "qcom,sn-fuse";
+		reg = <0x784138 0x4>;
+		reg-names = "sn-base";
+	};
+
+	sec_boot_fuse: secbootfuse@0x786078 {
+		compatible = "qcom,sec-boot-fuse";
+		reg = <0x780350 0x4>;
+		reg-names = "sec-boot-base";
 	};
 
 	jtag_mm0: jtagmm@7840000 {

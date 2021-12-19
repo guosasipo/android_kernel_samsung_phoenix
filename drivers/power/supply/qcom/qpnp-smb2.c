@@ -123,6 +123,13 @@ static struct smb_params v1_params = {
 		.max_u	= 1575000,
 		.step_u	= 25000,
 	},
+	.jeita_fv_comp		= {
+		.name	= "jeita fv reduction",
+		.reg	= JEITA_FVCOMP_CFG_REG,
+		.min_u	= 0,
+		.max_u	= 472500,
+		.step_u	= 7500,
+	},
 	.freq_buck		= {
 		.name	= "buck switching frequency",
 		.reg	= CFG_BUCKBOOST_FREQ_SELECT_BUCK_REG,
@@ -179,7 +186,7 @@ struct smb2 {
 	bool			bad_part;
 };
 
-static int __debug_mask;
+static int __debug_mask = PR_INTERRUPT | PR_MISC;
 module_param_named(
 	debug_mask, __debug_mask, int, S_IRUSR | S_IWUSR
 );
@@ -235,6 +242,11 @@ static int smb2_parse_dt(struct smb2 *chip)
 				"qcom,fv-max-uv", &chg->batt_profile_fv_uv);
 	if (rc < 0)
 		chg->batt_profile_fv_uv = -EINVAL;
+
+	#ifdef CONFIG_DISABLE_TEMP_PROTECT	
+	chg->batt_profile_fv_uv = 4100000;
+	chg->batt_profile_fcc_ua = 1200000;
+	#endif
 
 	rc = of_property_read_u32(node,
 				"qcom,usb-icl-ua", &chip->dt.usb_icl_ua);
@@ -944,11 +956,13 @@ static enum power_supply_property smb2_batt_props[] = {
 	POWER_SUPPLY_PROP_RERUN_AICL,
 	POWER_SUPPLY_PROP_DP_DM,
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
+	POWER_SUPPLY_PROP_BATTERY_CHARGING_DISABLE,
 	POWER_SUPPLY_PROP_FCC_STEPPER_ENABLE,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
 };
 
+static int tempvalue = 0;
 static int smb2_batt_get_prop(struct power_supply *psy,
 		enum power_supply_property psp,
 		union power_supply_propval *val)
@@ -963,6 +977,9 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
 		rc = smblib_get_prop_batt_health(chg, val);
+		#ifdef CONFIG_DISABLE_TEMP_PROTECT	
+		val->intval = POWER_SUPPLY_HEALTH_GOOD;
+		#endif
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
 		rc = smblib_get_prop_batt_present(chg, val);
@@ -973,8 +990,17 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		rc = smblib_get_prop_batt_charge_type(chg, val);
 		break;
+	case POWER_SUPPLY_PROP_BATTERY_CHARGING_DISABLE:
+		val->intval = tempvalue;
+		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		rc = smblib_get_prop_batt_capacity(chg, val);
+		#ifdef CONFIG_DISABLE_TEMP_PROTECT	
+		if (val->intval < 4) {
+			//pr_debug("WINGTECH disable temp protect version; real capacity:%d\n",val->intval);
+			val->intval = 3;
+		}
+		#endif
 		break;
 	case POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL:
 		rc = smblib_get_prop_system_temp_level(chg, val);
@@ -1020,6 +1046,13 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 		val->intval = get_client_vote(chg->fcc_votable,
 					      BATT_PROFILE_VOTER);
 		break;
+	case POWER_SUPPLY_PROP_TEMP:
+		rc = smblib_get_prop_batt_temp(chg, val);
+		#ifdef CONFIG_DISABLE_TEMP_PROTECT	
+		pr_debug("WINGTECH disable temp protect version; real temp:%d\n",val->intval);
+		val->intval = 250;
+		#endif
+		break;
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
 		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
 		break;
@@ -1047,7 +1080,6 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 	case POWER_SUPPLY_PROP_CYCLE_COUNT:
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-	case POWER_SUPPLY_PROP_TEMP:
 		rc = smblib_get_prop_from_bms(chg, psp, val);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
@@ -1152,6 +1184,24 @@ static int smb2_batt_set_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMITED:
 		rc = smblib_set_prop_input_current_limited(chg, val);
 		break;
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+		rc = smblib_set_prop_input_suspend(chg, val);
+		break;
+	case POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED:
+		rc = smblib_write(chg, CHARGING_ENABLE_CMD_REG, val->intval ? CHARGING_ENABLE_CMD_BIT : 0);
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_FV_COMP:
+		if (val->intval >= 0) {
+			smblib_set_charge_param(chg, &chg->param.jeita_fv_comp, val->intval);
+		}
+		break;
+	case POWER_SUPPLY_PROP_BATTERY_CHARGING_DISABLE:
+		vote(chg->chg_disable_votable, DEFAULT_VOTER, (bool)val->intval, 0);
+		if(!(bool)val->intval)
+			vote(chg->fcc_votable, DEFAULT_VOTER, true, 800000);
+		tempvalue = val->intval;
+		pr_err("wt disply version limit current to 800mA\n");
+		break;
 	default:
 		rc = -EINVAL;
 	}
@@ -1172,7 +1222,10 @@ static int smb2_batt_prop_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMITED:
 	case POWER_SUPPLY_PROP_STEP_CHARGING_ENABLED:
 	case POWER_SUPPLY_PROP_SW_JEITA_ENABLED:
+	case POWER_SUPPLY_PROP_BATTERY_CHARGING_DISABLE:
 		return 1;
+	case POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED:
+	case POWER_SUPPLY_PROP_VOLTAGE_FV_COMP:
 	default:
 		break;
 	}
@@ -1783,6 +1836,9 @@ static int smb2_init_hw(struct smb2 *chip)
 			return rc;
 		}
 	}
+	//Clear default comp setting
+	smblib_set_charge_param(chg, &chg->param.jeita_fv_comp, 0);
+	smblib_set_charge_param(chg, &chg->param.jeita_cc_comp, 0);
 
 	return rc;
 }
@@ -2059,7 +2115,7 @@ static struct smb_irq_info smb2_irqs[] = {
 	},
 	[INPUT_CURRENT_LIMIT_IRQ] = {
 		.name		= "input-current-limiting",
-		.handler	= smblib_handle_debug,
+        .handler    = smblib_handle_debug_nolog,	
 	},
 	[TEMPERATURE_CHANGE_IRQ] = {
 		.name		= "temperature-change",

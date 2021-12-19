@@ -833,6 +833,8 @@ MMC_DEV_ATTR(enhanced_rpmb_supported, "%#x\n",
 		card->ext_csd.enhanced_rpmb_supported);
 MMC_DEV_ATTR(rel_sectors, "%#x\n", card->ext_csd.rel_sectors);
 
+MMC_DEV_ATTR(fw_version, "%#x\n", card->ext_csd.fw_version);	
+
 static ssize_t mmc_fwrev_show(struct device *dev,
 			      struct device_attribute *attr,
 			      char *buf)
@@ -848,6 +850,88 @@ static ssize_t mmc_fwrev_show(struct device *dev,
 }
 
 static DEVICE_ATTR(fwrev, S_IRUGO, mmc_fwrev_show, NULL);
+
+static int calc_mem_size(void)
+{
+	int temp_size;
+	temp_size = (int)totalram_pages/1024; //page size 4K
+
+	if ((temp_size > 0*256) && (temp_size <= 1*256))
+		return 1;
+	else if ((temp_size > 1*256) && (temp_size <= 2*256))
+		return 2;
+	else if ((temp_size > 2*256) && (temp_size <= 3*256))
+		return 3;
+	else if ((temp_size > 3*256) && (temp_size <= 4*256))
+		return 4;
+	else if ((temp_size > 4*256) && (temp_size <= 6*256))
+		return 6;
+	else if ((temp_size > 6*256) && (temp_size <= 8*256))
+		return 8;
+	else
+		return 0;
+}
+
+static int calc_mmc_size(struct mmc_card *card)
+{
+	int temp_size;
+	temp_size = (int)card->ext_csd.sectors/2/1024/1024; //sector size 512B
+
+	if ((temp_size > 8) && (temp_size <= 16))
+		return 16;
+	else if ((temp_size > 16) && (temp_size <= 32))
+		return 32;
+	else if ((temp_size > 32) && (temp_size <= 64))
+		return 64;
+	else if ((temp_size > 64) && (temp_size <= 128))
+		return 128;
+	else if ((temp_size > 128) && (temp_size <= 256))
+		return 256;
+	else
+		return 0;
+}
+
+static ssize_t flash_name_show(struct device *dev,
+	struct device_attribute *attr,
+	char *buf)
+{
+	struct mmc_card *card = mmc_dev_to_card(dev);
+	char *vendor_name = NULL;
+	char *emcp_name = NULL;
+
+	switch (card->cid.manfid) {
+		case 0x11:
+			vendor_name = "Toshiba";
+			break;
+		case 0x13:
+			vendor_name = "Micron";
+			break;
+		case 0x15:
+			vendor_name = "Samsung";
+			if (strncmp(card->cid.prod_name, "3H6CAB", strlen("3H6CAB")) == 0)
+				emcp_name = "KM3H6001CA-B515";
+			else if (strncmp(card->cid.prod_name, "3V6CMB", strlen("3V6CMB")) == 0)
+				emcp_name = "KM3V6001CM-B705";
+			else
+				emcp_name = NULL;
+			break;
+		case 0x45:
+			vendor_name = "Sandisk";
+			break;
+		case 0x90:
+			vendor_name = "Hynix";
+			break;
+		default:
+			vendor_name = "Unknown";
+			break;
+	}
+
+	if (emcp_name == NULL)
+		emcp_name = card->cid.prod_name;
+	return sprintf(buf, "%s_%s_%dGB_%dGB\n",vendor_name, emcp_name, calc_mem_size(), calc_mmc_size(card));
+}
+
+static DEVICE_ATTR(flash_name, S_IRUGO, flash_name_show, NULL);
 
 static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_cid.attr,
@@ -871,6 +955,8 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_raw_rpmb_size_mult.attr,
 	&dev_attr_enhanced_rpmb_supported.attr,
 	&dev_attr_rel_sectors.attr,
+        &dev_attr_fw_version.attr,      
+        &dev_attr_flash_name.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(mmc_std);

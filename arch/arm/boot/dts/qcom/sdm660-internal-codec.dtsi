@@ -72,12 +72,36 @@
 
 &int_codec {
 	status = "okay";
+	/*Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup*/
+       qcom,wsa-disable;
+	qcom,msm-hs-micbias-type = "internal";
+	qcom,us-euro-gpios;
+	qcom,audio-routing =
+	"RX_BIAS", "INT_MCLK0",
+	"SPK_RX_BIAS", "INT_MCLK0",
+	"INT_LDO_H", "INT_MCLK0",
+	"RX_I2S_CLK", "INT_MCLK0",
+	"TX_I2S_CLK", "INT_MCLK0",
+	"MIC BIAS External", "Handset Mic",
+	"MIC BIAS Internal2", "Headset Mic",
+	"MIC BIAS External", "Secondary Mic",
+	"AMIC1", "MIC BIAS External",
+	"AMIC2", "MIC BIAS Internal2",
+	"AMIC3", "MIC BIAS External",
+	"PDM_IN_RX1", "PDM_OUT_RX1",
+	"PDM_IN_RX2", "PDM_OUT_RX2",
+	"PDM_IN_RX3", "PDM_OUT_RX3",
+	"ADC1_IN", "ADC1_OUT",
+	"ADC2_IN", "ADC2_OUT",
+	"ADC3_IN", "ADC3_OUT";
 };
+/*-Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup*/
 
 &pmic_analog_codec {
 	status = "okay";
 };
 
 &msm_sdw_codec {
-	status = "okay";
+	/*Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup*/
+	status = "disabled";
 };

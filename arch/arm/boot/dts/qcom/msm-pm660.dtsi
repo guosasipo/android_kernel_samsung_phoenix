@@ -48,7 +48,11 @@
 
 			qcom,pon_1 {
 				qcom,pon-type = <0>;
+				qcom,support-reset = <1>;
 				qcom,pull-up = <1>;
+				qcom,s1-timer = <6720>;
+				qcom,s2-timer = <2000>;
+				qcom,s2-type = <7>;
 				linux,code = <116>;
 			};
 
@@ -56,6 +60,16 @@
 				qcom,pon-type = <1>;
 				qcom,pull-up = <1>;
 				linux,code = <114>;
+			};
+//+bug559620, liujun5,add 20200528, Restart the phone when long press power
+			qcom,pon_3 {
+				qcom,pon-type = <3>;
+				qcom,support-reset = <1>;
+				qcom,s1-timer = <4480>;
+				qcom,s2-timer = <2000>;
+				qcom,s2-type = <7>;
+				qcom,pull-up = <1>;
+//+bug559620, liujun5,add 20200528, Restart the phone when long press power
 			};
 		};
 
@@ -333,9 +347,13 @@
 			qcom,wipower-max-uw = <5000000>;
 			dpdm-supply = <&qusb_phy0>;
 
+			qcom,fcc-max-ua = <2000000>;//xuguoqiang.wt modify max charging current
+			qcom,fv-max-uv = <4400000>;
+			status = "okay";
+			qcom,otg-cl-ua = <1000000>;
 			qcom,thermal-mitigation
-					= <3000000 2500000 2000000 1500000
-						1000000 500000>;
+					= <2000000 1200000 1000000 800000
+						700000 500000>;
 
 			qcom,chgr@1000 {
 				reg = <0x1000 0x100>;
@@ -550,11 +568,33 @@
 				      <&pm660_rradc 7>;
 			io-channel-names = "rradc_batt_id",
 					   "rradc_die_temp";
+			//qcom,battery-data = <&qrd_batterydata>;
+			qcom,fg-cc-cv-threshold-mv = <4390>;
+			qcom,fg-jeita-thresholds = <(-5) 12 45 55>;
+			qcom,battery-thermal-coefficients = [9d 50 ff]; // Beta 3380,80-vt310-138
+			qcom,fg-sys-term-current = <(-250)>; /* negative values!!! */
+			qcom,fg-chg-term-current = <150>;
+			qcom,hold-soc-while-full;
+			qcom,fg-auto-recharge-soc;
+			qcom,fg-recharge-soc-thr = <99>;
+			qcom,fg-cutoff-voltage = <3400>;
+			qcom,fg-cutoff-current = <200>;
 			qcom,rradc-base = <0x4500>;
 			qcom,fg-esr-timer-awake = <96 96>;
 			qcom,fg-esr-timer-asleep = <256 256>;
 			qcom,fg-esr-timer-charging = <0 96>;
 			qcom,cycle-counter-en;
+			qcom,ki-coeff-hi-chg = <0>;
+			qcom,ki-coeff-med-chg = <62>;
+			qcom,ki-coeff-low-chg = <367>;
+			qcom,ki-coeff-chg-med-hi-thresh-ma = <1000>;
+			qcom,ki-coeff-chg-low-med-thresh-ma = <500>;
+			qcom,ki-coeff-soc-dischg = <30 70 100>;
+			qcom,ki-coeff-hi-dischg = <0 0 0>;
+			qcom,ki-coeff-med-dischg = <62 62 62>;
+			qcom,ki-coeff-low-dischg = <124 124 124>;
+			qcom,ki-coeff-dischg-low-med-thresh-ma = <50>;
+			qcom,ki-coeff-dischg-med-hi-thresh-ma = <100>;
 			status = "okay";
 
 			qcom,fg-batt-soc@4000 {
@@ -640,18 +680,18 @@
 			qcom,misc-clk-trim-error-reg = <0xf3>;
 			qcom,actuator-type = "lra";
 			qcom,play-mode = "direct";
-			qcom,vmax-mv = <3200>;
+			qcom,vmax-mv = <2500>;
 			qcom,ilim-ma = <800>;
-			qcom,wave-shape = "square";
-			qcom,wave-play-rate-us = <6667>;
+			qcom,wave-shape = "sine";
+			qcom,wave-play-rate-us = <4255>;
 			qcom,int-pwm-freq-khz = <505>;
 			qcom,sc-deb-cycles = <8>;
 			qcom,en-brake;
 			qcom,brake-pattern = [03 03 00 00];
 			qcom,lra-high-z = "opt0";
-			qcom,lra-auto-res-mode = "qwd";
+			qcom,lra-auto-res-mode = "zxd";
 			qcom,lra-calibrate-at-eop = <0>;
-			qcom,correct-lra-drive-freq;
+			qcom,lra-hw-auto-resonance;
 		};
 	};
 };

@@ -11,12 +11,15 @@
  */
 
 #include "sdm660-pinctrl.dtsi"
-#include "sdm660-camera-sensor-mtp.dtsi"
+#include "sdm660-camera-sensor-mtp-88661.dtsi"
 / {
 	mtp_batterydata: qcom,battery-data {
 		qcom,batt-id-range-pct = <15>;
-		#include "fg-gen3-batterydata-itech-3000mah.dtsi"
-		#include "fg-gen3-batterydata-ascent-3450mah.dtsi"
+
+		//#include "fg-gen3-batterydata-itech-3000mah.dtsi"
+		//#include "fg-gen3-batterydata-ascent-3450mah.dtsi"
+		#include "fg-gen3-batterydata-SDI-4v4-3300mah.dtsi"
+
 	};
 };
 
@@ -68,38 +71,74 @@
 	};
 };
 
-&i2c_6 { /* BLSP1 QUP6 (NFC) */
-	status = "okay";
-	nq@28 {
-		compatible = "qcom,nq-nci";
-		reg = <0x28>;
-		qcom,nq-irq = <&tlmm 28 0x00>;
-		qcom,nq-ven = <&tlmm 29 0x00>;
-		qcom,nq-firm = <&tlmm 30 0x00>;
-		qcom,nq-clkreq = <&pm660_gpios 4 0x00>;
-		qcom,nq-esepwr = <&tlmm 31 0x00>;
+&i2c_4 {
+	status = "ok";
+	synaptics_dsx@70 {
+		compatible = "synaptics,dsx-i2c";
+		reg = <0x70>;
 		interrupt-parent = <&tlmm>;
-		qcom,clk-src = "BBCLK3";
-		interrupts = <28 0>;
-		interrupt-names = "nfc_irq";
-		pinctrl-names = "nfc_active", "nfc_suspend";
-		pinctrl-0 = <&nfc_int_active &nfc_enable_active>;
-		pinctrl-1 = <&nfc_int_suspend &nfc_enable_suspend>;
-		clocks = <&clock_rpmcc RPM_LN_BB_CLK3_PIN>;
-		clock-names = "ref_clk";
+		interrupts = <67 0x2008>;
+		vdd-supply = <&pm660_l13>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ts_active>;
+		synaptics,bus-reg-name = "vdd";
+		synaptics,lcdid-gpio = <&tlmm 74 0>;
+		synaptics,ub-i2c-addr = <0x2c>;
+		synaptics,irq-gpio = <&tlmm 67 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+		synaptics,irq-on-state = <0>;
+		synaptics,power-delay-ms = <200>;
+		synaptics,reset-delay-ms = <200>;
+		synaptics,reset-on-state = <0>;
+		synaptics,reset-active-ms = <20>;
+		/* uncomment and update line below as appropriate if there are 0D buttons */
+		/* synaptics,cap-button-codes = <102 158>; */
+		/* uncomment and update lines below as appropriate if there are virtual buttons */
+		/* synaptics,vir-button-codes = <102 100 900 100 60 158 300 900 100 60>; */
+		/* synaptics,max-y-for-2d = <800>; */
+		/* touchpanel configuration */
+		touchpanel,vendor = "synaptics";
+		touchpanel,product = "td4310";
+		/* touchpanel,panel_maker = "cdot"; */
+		touchpanel,irq-gpio = <&tlmm 67 0x0>;
 	};
 };
+
+//&i2c_6 { /* BLSP1 QUP6 (NFC) */
+//	status = "okay";
+//	nq@28 {
+//		compatible = "qcom,nq-nci";
+//		reg = <0x28>;
+//		qcom,nq-irq = <&tlmm 28 0x00>;
+//		qcom,nq-ven = <&tlmm 29 0x00>;
+//		qcom,nq-firm = <&tlmm 30 0x00>;
+//		qcom,nq-clkreq = <&pm660_gpios 4 0x00>;
+//		qcom,nq-esepwr = <&tlmm 31 0x00>;
+//		interrupt-parent = <&tlmm>;
+//		qcom,clk-src = "BBCLK3";
+//		interrupts = <28 0>;
+//		interrupt-names = "nfc_irq";
+//		pinctrl-names = "nfc_active", "nfc_suspend";
+//		pinctrl-0 = <&nfc_int_active &nfc_enable_active>;
+//		pinctrl-1 = <&nfc_int_suspend &nfc_enable_suspend>;
+//		clocks = <&clock_rpmcc RPM_LN_BB_CLK3_PIN>;
+//		clock-names = "ref_clk";
+//	};
+//};
 
 &mdss_mdp {
 	qcom,mdss-pref-prim-intf = "dsi";
 };
 
 &mdss_dsi {
-	hw-config = "split_dsi";
+
+	hw-config = "single_dsi";
+
 };
 
 &mdss_dsi0 {
-	qcom,dsi-pref-prim-pan = <&dsi_dual_nt35597_truly_video>;
+
+	qcom,dsi-pref-prim-pan = <&dsi_td4310_cdot_fhdp_video>;
+
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
 	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
@@ -114,6 +153,9 @@
 	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
 	qcom,platform-reset-gpio = <&tlmm 53 0>;
 	qcom,platform-te-gpio = <&tlmm 59 0>;
+
+	status = "disabled";
+
 };
 
 &mdss_dp_ctrl {
@@ -123,10 +165,15 @@
 	qcom,aux-en-gpio = <&tlmm 55 0>;
 	qcom,aux-sel-gpio = <&tlmm 56 0>;
 	qcom,usbplug-cc-gpio = <&tlmm 58 0>;
+
+	status = "disabled";
+
 };
 
 &pm660l_wled {
-	qcom,led-strings-list = [01 02];
+
+	qcom,led-strings-list = [00 01];
+
 };
 
 &dsi_dual_nt35597_truly_video {
@@ -254,6 +301,38 @@
 	qcom,msm-ssc-sensors {
 		compatible = "qcom,msm-ssc-sensors";
 	};
+
+
+        boardinfo{
+                compatible = "wt:boardinfo";
+        };
+
+	goodix_fp {
+        compatible = "goodix,fingerprint";
+        interrupt-parent = <&tlmm>;
+        interrupts = <72 0x1>;
+        fp-gpio-irq = <&tlmm 72 0x00>;
+        fp-gpio-reset = <&tlmm 20 0x00>;
+        power_enable = <&tlmm 5 0x00>;
+        fp-ldo-supply = <&pm660l_l3>;
+        goodix-fp-ldo = "fp-ldo";
+        status = "okay";
+	};
+
+        /* silead fingerprint*/
+	silead_fp {
+	   compatible = "sil,silead_fp";
+	   	qcom,qup-id = <3>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <72 0x1>;
+		irq-gpios = <&tlmm 72 0x00>;
+		rst-gpios = <&tlmm 20 0x00>;
+		power-gpios = <&tlmm 5 0x00>;
+		silead-avdd-supply = <&pm660l_l3>;
+		spi-max-frequency = <4800000>;
+		status="ok";
+	};
+
 };
 
 &mem_client_3_size {
@@ -274,4 +353,13 @@
 		qcom,recharge-mv = <100>;
 		qcom,parallel-en-pin-polarity = <1>;
 	};
+/*+Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup*/
+	tfa987x:tfa987x@34 {
+		compatible = "nxp,tfa987x";
+		reg = <0x34>;
+		reset-gpio = <&tlmm 56 0>;
+		irq-gpio = <&tlmm 73 0>;
+		status = "ok";
+	};
 };
+/*-Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup*/

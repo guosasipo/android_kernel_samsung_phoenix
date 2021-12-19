@@ -100,6 +100,7 @@ struct msm_asoc_mach_data {
 	struct device_node *comp_gpio_p; /* used by pinctrl API */
 	struct device_node *dmic_gpio_p; /* used by pinctrl API */
 	struct device_node *ext_spk_gpio_p; /* used by pinctrl API */
+	struct device_node *tert_mi2s_gpio_p; /* used by pinctrl API*/ //Chk30757,liujun5.wt modify 20200413 ,modify for smart PA bringup
 	struct snd_soc_codec *codec;
 	struct sdm660_codec sdm660_codec_fn;
 	struct snd_info_entry *codec_root;

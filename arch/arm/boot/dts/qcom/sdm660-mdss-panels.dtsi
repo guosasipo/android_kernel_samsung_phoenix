@@ -28,6 +28,31 @@
 #include "dsi-panel-lgd-incell-sw49106-fhd-video.dtsi"
 #include "dsi-panel-hx8399c-fhd-plus-video.dtsi"
 
+
+
+#include "dsi-panel-td4310-cdot-fhdp-video.dtsi"
+#include "dsi-panel-td4310-djn-fhdp-video.dtsi"
+
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&dsi_td4310_cdot_fhdp_video>;
+	panel_iovcc_parent-supply = <&pm660_s4>;
+	panel_iovcc-supply = <&panel_iovcc>;
+};
+
+&soc {
+	panel_iovcc: panel_iovcc-gpio-regulator {
+		compatible = "regulator-fixed";
+
+		regulator-name = "panel_iovcc-gpio-supply";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+
+		gpio = <&tlmm 49 0>;
+		enable-active-high;
+	};
+};
+
+
 &soc {
 	dsi_panel_pwr_supply: dsi_panel_pwr_supply {
 		#address-cells = <1>;

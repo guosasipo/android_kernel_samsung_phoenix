@@ -2210,6 +2210,82 @@ static int qpnp_flash_led_parse_common_dt(struct qpnp_flash_led *led,
 	return 0;
 }
 
+#include <linux/fs.h>
+#include <linux/cdev.h>
+#define FLASHLIGHT_DEVNAME            "kd_camera_flashlight"
+extern  int32_t wt_flash_flashlight(int index, int flashduty,bool boolean);
+
+static struct class *flashlight_class;
+static struct device *flashlight_device;
+
+static int flashduty1=0;
+static int flashduty2=0;
+
+static dev_t flashlight_devno;
+
+static struct cdev flashlight_cdev;
+static const struct file_operations flashlight_fops = {
+        .owner = THIS_MODULE,
+        .unlocked_ioctl = NULL,
+        .open = NULL,
+        .release = NULL,
+#ifdef CONFIG_COMPAT
+        .compat_ioctl = NULL,
+#endif
+};
+
+static ssize_t show_flashduty1(struct device *dev, struct device_attribute *attr, char *buf)
+{
+        printk("get backlight duty value is %d\n", flashduty1);
+        return sprintf(buf, "%d\n", flashduty1);
+}
+
+static ssize_t store_flashduty1(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+        char *pvalue=NULL;
+        printk("Enter!\n");
+        flashduty1= simple_strtol(buf, &pvalue, 0);
+        printk("flashduty1= %d\n", flashduty1);
+        if(flashduty1>5)
+                flashduty1=5;
+        if(flashduty1>=0){
+                wt_flash_flashlight(1,flashduty1,true);
+                printk("wt_flash_flashlight flashduty1=%d\n", flashduty1);
+        }else{
+                wt_flash_flashlight(1,flashduty1,false);
+                printk("wt_flash_flashlight 2 flashduty1=%d\n", flashduty1);
+        }
+        printk("Exit!\n");
+        return count;
+}
+static DEVICE_ATTR(flash1, 0664, show_flashduty1, store_flashduty1);
+
+static ssize_t show_flashduty2(struct device *dev, struct device_attribute *attr, char *buf)
+{
+        printk("get backlight duty value is %d\n", flashduty2);
+        return sprintf(buf, "%d\n", flashduty2);
+}
+
+static ssize_t store_flashduty2(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+        char *pvalue=NULL;
+        printk("Enter!\n");
+        flashduty2= simple_strtol(buf, &pvalue, 0);
+        printk("flashduty2= %d\n", flashduty2);
+        if(flashduty2>5)
+                flashduty2=5;
+        if(flashduty2>=0){
+                wt_flash_flashlight(2,flashduty2,true);
+                printk("wt_flash_flashlight flashduty2=%d\n", flashduty2);
+        }else{
+                wt_flash_flashlight(2,flashduty2,false);
+                printk("wt_flash_flashlight 2 flashduty2=%d\n", flashduty2);
+        }
+        printk("Exit!\n");
+        return count;
+}
+static DEVICE_ATTR(flash2, 0664, show_flashduty2, store_flashduty2);
+
 static int qpnp_flash_led_probe(struct platform_device *pdev)
 {
 	struct qpnp_flash_led *led;
@@ -2218,6 +2294,37 @@ static int qpnp_flash_led_probe(struct platform_device *pdev)
 	unsigned int base;
 	int rc, i = 0, j = 0;
 
+        rc = alloc_chrdev_region(&flashlight_devno, 0, 1, FLASHLIGHT_DEVNAME);
+        if (rc) {
+               pr_err("alloc_chrdev_region fail: %d ~", rc);
+        } else {
+               printk("major: %d, minor: %d ~", MAJOR(flashlight_devno),MINOR(flashlight_devno));
+        }
+        cdev_init(&flashlight_cdev, &flashlight_fops);
+        flashlight_cdev.owner = THIS_MODULE;
+        rc = cdev_add(&flashlight_cdev, flashlight_devno, 1);
+        if (rc) {
+               pr_err("cdev_add fail: %d ~", rc);
+        }
+        flashlight_class = class_create(THIS_MODULE, "flashlightdrv");
+        if (IS_ERR(flashlight_class)) {
+               pr_err("[flashlight_probe] Unable to create class, err = %d ~",
+                         (int)PTR_ERR(flashlight_class));
+              return   -1 ;
+        }
+        flashlight_device =
+               device_create(flashlight_class, NULL, flashlight_devno, NULL, FLASHLIGHT_DEVNAME);
+        if (NULL == flashlight_device) {
+               pr_err("device_create fail ~");
+        }
+        rc = device_create_file(flashlight_device,&dev_attr_flash1);
+        if (rc) {
+               pr_err("device_create_file flash1 fail!\n");
+        }
+        rc = device_create_file(flashlight_device, &dev_attr_flash2);
+        if (rc) {
+               pr_err("device_create_file flash2 fail!\n");
+        }
 	node = pdev->dev.of_node;
 	if (!node) {
 		pr_err("No flash LED nodes defined\n");

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -249,6 +249,11 @@ struct msm_mdp_interface {
 				do_div(out, 2 * bl_max);\
 				} while (0)
 
+
+int wingtech_mdss_get_bl_bright_value(struct msm_fb_data_type *mfd,
+					int in_value, bool bright_to_bl);
+
+
 struct mdss_fb_file_info {
 	struct file *file;
 	struct list_head list;
@@ -292,7 +297,6 @@ struct msm_fb_data_type {
 	int op_enable;
 	u32 fb_imgType;
 	int panel_reconfig;
-	int force_null_commit;
 	u32 panel_orientation;
 
 	u32 dst_format;
@@ -339,6 +343,8 @@ struct msm_fb_data_type {
 	struct task_struct *disp_thread;
 	atomic_t commits_pending;
 	atomic_t kickoff_pending;
+	atomic_t resume_pending;
+	wait_queue_head_t resume_wait_q;
 	wait_queue_head_t commit_wait_q;
 	wait_queue_head_t idle_wait_q;
 	wait_queue_head_t kickoff_wait_q;
